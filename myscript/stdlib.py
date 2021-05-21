@@ -6,11 +6,25 @@
 """ TODO:
 abs
 base
+
 range
 zip
 find
+
+diff
+symdiff
+union
+intersect
+
+fold
+map
+filter
+
 print
 println
+
+join
+
 rand
 randint
 """

@@ -35,7 +35,7 @@ class OperatorData(NamedTuple):
 
 
 def apply_operator(ctx: ContextFrame, op: Operator) -> None:
-    opdata = _search_registery(op, ctx.iter_stack_reversed())
+    opdata = _search_registery(op, ctx.iter_stack())
 
     args = [ ctx.pop_stack() for i in range(len(opdata.signature)) ]
     args.reverse()
@@ -147,13 +147,28 @@ def operator_inspect(ctx, o):
 def operator_eval(ctx, o):
     sub_ctx = ctx.create_child()
     sub_ctx.exec(o.value)
-    yield from sub_ctx.iter_stack()
+    yield from sub_ctx.iter_stack_result()
 
 # evaluate a string directly in the current context
 @operator_func(Operator.Eval, DataType.String)
 def operator_eval(ctx, text):
     ctx.exec(text.value)
     return ()
+
+###### Rotate
+
+# move the ith stack element to top
+@operator_func(Operator.Rotate, )
+def operator_rotate(ctx):
+    return ()
+
+###### Index
+
+# copy the ith stack element to top
+@operator_func(Operator.Index, DataType.Number)
+def operator_rotate(ctx, index):
+    yield ctx.peek_stack(index.value)
+
 
 ###### Add
 
@@ -216,6 +231,7 @@ if __name__ == '__main__':
         """ 'c' ['a' 'b'] + """,
         """ { -1 5 * [ 'step' ] + }! """,
         """ [ 1 '2 3 -'! 4 5 6 7 + ] """,
+        """ 1 2 3 4 5 6 2$ """,
     ]
 
     for test in tests:

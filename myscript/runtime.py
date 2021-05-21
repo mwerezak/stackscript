@@ -27,7 +27,7 @@ class ContextFrame:
     def __init__(self, runtime: ScriptRuntime, parent: Optional[ContextFrame]):
         self.runtime = runtime
         self.parent = parent
-        self._stack = deque()
+        self._stack = deque()  # index 0 is the TOP
 
         if parent is None:
             self._namespace = chainmap()
@@ -42,18 +42,29 @@ class ContextFrame:
         return self._namespace
 
     def push_stack(self, value: DataValue) -> None:
-        self._stack.append(value)
+        self._stack.appendleft(value)
 
     def pop_stack(self) -> DataValue:
         if len(self._stack) == 0:
-            raise ScriptStackError('_stack is empty')
-        return self._stack.pop()
+            raise ScriptStackError('stack is empty')
+        return self._stack.popleft()
 
     def iter_stack(self) -> Iterator[DataValue]:
+        """Iterate starting from the top and moving down."""
         return iter(self._stack)
 
-    def iter_stack_reversed(self) -> Iterator[DataValue]:
+    def iter_stack_result(self) -> Iterator[DataValue]:
+        """Iterate the stack contents as if copying results to another context."""
         return reversed(self._stack)
+
+    def peek_stack(self, idx: int) -> DataValue:
+        return self._stack[idx]
+
+    def insert_stack(self, idx: int, value: DataValue) -> None:
+        self._stack.insert(idx, value)
+
+    def delete_stack(self, idx: int) -> None:
+        del self._stack[idx]
 
     def exec(self, prog: Union[str, Iterable[Token]]) -> None:
         if isinstance(prog, str):
@@ -97,7 +108,7 @@ class ContextFrame:
         # create a new context in which to evaluate the array
         array_ctx = self.create_child()
         array_ctx.exec(token.item.value)
-        return ArrayValue(list(array_ctx.iter_stack()))
+        return ArrayValue(list(array_ctx.iter_stack_result()))
 
 
 class ScriptRuntime:
@@ -109,7 +120,7 @@ class ScriptRuntime:
         self.parser.input(text)
         self.root.exec(self.parser.get_tokens())
         
-        for i, value in enumerate(self.root.iter_stack_reversed()):
+        for i, value in enumerate(self.root.iter_stack()):
             print(f"[{i}]: {value}")
 
     def get_globals() -> Mapping[str, DataValue]:

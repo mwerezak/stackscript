@@ -52,6 +52,8 @@ class Operator(Enum):
     Eval    = OperatorDef(r'!')    # evaluate a block or string and push results onto the stack
     Rotate  = OperatorDef(r'@')    # move the ith stack element to top
     Index   = OperatorDef(r'\$')   # copy the ith stack element to top
+    Drop    = OperatorDef(r'\.')   # remove the top element from the stack
+
     Assign  = OperatorDef(r':')
 
     Add     = OperatorDef(r'\+(?!\+)')   # add, concat
@@ -70,7 +72,6 @@ class Operator(Enum):
     Greater = OperatorDef(r'>(?!>)')    # greater than, elements greater than or equal to index
     Equal   = OperatorDef(r'=')    # equal to, element at index
     Size    = OperatorDef(r'\#')
-    Dup     = OperatorDef(r'\.')
     Pow     = OperatorDef(r'\*\*')
     Dec     = OperatorDef(r'--')   # deincrement, left uncons
     Inc     = OperatorDef(r'\+\+') # increment, right uncons
