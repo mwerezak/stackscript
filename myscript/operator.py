@@ -124,7 +124,7 @@ def operator_invert(ctx, x):
 @operator_func(Operator.Inspect, DataType.Number)
 @operator_func(Operator.Inspect, DataType.Bool)
 def operator_inspect(ctx, o):
-    yield StringValue(o.format_value())
+    yield StringValue(o.format())
 
 ###### Add
 
