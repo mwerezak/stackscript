@@ -97,9 +97,7 @@ class Lexer:
         'bool',
         'integer',
         'float',
-        'array',
         'string',
-        'block',
 
         ## Identifiers
         'identifier',
@@ -152,25 +150,6 @@ class Lexer:
         t.value = t.value, Literal(DataType.String, t.value[1:-1])
         return t
 
-    def t_array(self, t):
-        r'\[.*?\]'
-
-        sublexer = self._lexer.clone()
-        sublexer.input(t.value[1:-1])
-        content = tuple(self._emit_tokens(sublexer))
-
-        t.value = t.value, Literal(DataType.Array, content)
-        return t
-
-    def t_block(self, t):
-        r'\{.*?\}'
-
-        sublexer = self._lexer.clone()
-        sublexer.input(t.value[1:-1])
-        content = tuple(self._emit_tokens(sublexer))
-
-        t.value = t.value, Literal(DataType.Block, content)
-        return t
 
     ## Other
 
