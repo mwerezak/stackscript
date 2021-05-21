@@ -49,14 +49,15 @@ def _search_registery(op: Operator, peek: Iterator[DataValue]) -> OperatorData:
 
     args = []
     for nargs, subregistry in enumerate(registry):
+        try:
+            while len(args) < nargs:
+                args.insert(0, next(peek))
+        except StopIteration:
+            break
+
         sig = tuple(value.type for value in args)
         if sig in subregistry:
             return subregistry[sig]
-
-        try:
-            args.insert(0, next(peek))
-        except StopIteration:
-            break
 
     message = "Invalid operands for operator '{op.name}':\n"
     if len(args):
@@ -260,7 +261,7 @@ if __name__ == '__main__':
         """ 1 2 3 4 5 6 2$ """,
         """ 1 2 3 4 5 6 2@ """,
         """ 'str' 3 * 2 ['a' 'b' 'c'] *""",
-        """ 1 2 3 4 5 6 ... [] 1@ + 1@ + 1@ +""",
+        """ 1 2 3 4 5 6 ... [] 3 { 1@ + } * """,
     ]
 
     for test in tests:
