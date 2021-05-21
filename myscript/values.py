@@ -7,19 +7,23 @@ from __future__ import annotations
 
 from enum import Enum, auto
 from functools import total_ordering
+from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, NamedTuple, TypeVar, Generic, Protocol, runtime_checkable
+
+from typing import Union, Sequence, MutableSequence
 
 from myscript.lang import DataType
 
 if TYPE_CHECKING:
-    from typing import Any, Union, Callable, Sequence, MutableSequence
+    from typing import Any, Callable
     from myscript.parser import Token
+    
 
 _DATA_TYPES = {}
 
 def _data(type: DataType):
     def decorator(cls):
-        cls.type = type
+        cls._type = type
         _DATA_TYPES[type] = cls
         return cls
     return decorator
@@ -27,21 +31,24 @@ def _data(type: DataType):
 
 _VT = TypeVar('_VT')
 
-@runtime_checkable
-class DataValue(Protocol[_VT]):
+class DataValue(ABC, Generic[_VT]):
+    def __init__(self, value: _VT):
+        self._value = value
+
     @property
     def type(self) -> DataType:
-        ...
+        return self._type
 
     @property
     def value(self) -> _VT:
-        ...
+        return self._value
 
+    @abstractmethod
     def format(self) -> str:
         ...
 
     def __repr__(self) -> str:
-        return f'<Value({self.type.name}: {self.value!r})>'
+        return f'<Value({self.type.name}: {self._value!r})>'
 
     def __str__(self) -> str:
         return self.format()
@@ -53,9 +60,7 @@ class DataValue(Protocol[_VT]):
 
 
 @_data(DataType.Bool)
-class BoolValue(NamedTuple):
-    value: bool
-
+class BoolValue(DataValue[bool]):
     def __repr__(self) -> str:
         return f'{self.__class__.__qualname__}({self.value!r})'
 
@@ -66,9 +71,7 @@ class BoolValue(NamedTuple):
         return 'true' if self.value else 'false'
 
 @_data(DataType.Number)
-class NumberValue(NamedTuple):
-    value: Union[int, float]
-
+class NumberValue(DataValue[Union[int, float]]):
     def __repr__(self) -> str:
         return f'{self.__class__.__qualname__}({self.value!r})'
 
@@ -79,9 +82,7 @@ class NumberValue(NamedTuple):
         return str(self.value)
 
 @_data(DataType.String)
-class StringValue(NamedTuple):
-    value: str
-
+class StringValue(DataValue[str]):
     def __repr__(self) -> str:
         return f'{self.__class__.__qualname__}({self.value!r})'
 
@@ -92,9 +93,7 @@ class StringValue(NamedTuple):
         return repr(self.value)
 
 @_data(DataType.Array)
-class ArrayValue(NamedTuple):
-    value: MutableSequence[DataValue]
-
+class ArrayValue(DataValue[MutableSequence[DataValue]]):
     def __repr__(self) -> str:
         return f'{self.__class__.__qualname__}({self.value!r})'
 
@@ -106,9 +105,7 @@ class ArrayValue(NamedTuple):
         return '[' + content + ']'
 
 @_data(DataType.Block)
-class BlockValue(NamedTuple):
-    value: Sequence[Token]
-
+class BlockValue(DataValue[Sequence['Token']]):
     def __repr__(self) -> str:
         return f'{self.__class__.__qualname__}({self.value!r})'
 

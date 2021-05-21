@@ -11,12 +11,11 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, NamedTuple
 
 from myscript.lang import Operator, DataType
-from myscript.values import BoolValue, NumberValue, StringValue, ArrayValue, BlockValue
+from myscript.values import DataValue, BoolValue, NumberValue, StringValue, ArrayValue, BlockValue
 from myscript.errors import ScriptError
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Iterator, Sequence, MutableMapping, MutableSequence
-    from myscript.values import DataValue
     from myscript.runtime import ContextFrame
 
     Signature = Sequence[DataType]
@@ -41,7 +40,8 @@ def apply_operator(ctx: ContextFrame, op: Operator) -> None:
     args.reverse()
 
     for value in opdata.func(ctx, *args):
-        # print(value)
+        if not isinstance(value, DataValue):
+            raise TypeError(f"invalid object type yielded from operator {opdata}: {type(value)}", value)
         ctx.push_stack(value)
 
 def _search_registery(op: Operator, peek: Iterator[DataValue]) -> OperatorData:
@@ -60,8 +60,8 @@ def _search_registery(op: Operator, peek: Iterator[DataValue]) -> OperatorData:
 
     message = "Invalid operands for operator '{op.name}':\n"
     if len(args):
-        args_msg = ' '.join(data.format() for data in reversed(args))
-        types_msg = ', '.join(data.type.name for data in reversed(args))
+        args_msg = ' '.join(data.format() for data in args)
+        types_msg = ', '.join(data.type.name for data in args)
         message += f"{{{types_msg}}}: {args_msg}"
     else:
         message += "[]"
@@ -95,13 +95,9 @@ def operator_permute(op: Operator, primary: DataType, *secondary: DataType):
         # print(func.__name__, base_sig)
         for permute in itertools.permutations(range(len(base_sig))):
             signature = tuple(base_sig[i] for i in permute)
-            
-            reorder = _ReorderFunc(func, permute)
-            @wraps(func)
-            def wrapper(*args):
-                return reorder(*args)
 
-            opdata = OperatorData(op, signature, wrapper)
+            reorder = _ReorderFunc(func, permute)
+            opdata = OperatorData(op, signature, reorder)
             _register_operator(opdata)
         return func
     return decorator
@@ -112,6 +108,7 @@ class _ReorderFunc(NamedTuple):
 
     def __call__(self, ctx: ContextFrame, *args: Any) -> Any:
         # print(self.permute, args)
+        # print(*( args[i].type for i in self.permute ))
         return self.func(ctx, *( args[i] for i in self.permute ))
 
 
@@ -155,12 +152,16 @@ def operator_eval(ctx, text):
     ctx.exec(text.value)
     return ()
 
+
 ###### Rotate
 
 # move the ith stack element to top
-@operator_func(Operator.Rotate, )
-def operator_rotate(ctx):
-    return ()
+@operator_func(Operator.Rotate, DataType.Number)
+def operator_rotate(ctx, index):
+    item = ctx.peek_stack(index.value)
+    ctx.remove_stack(index.value)
+    yield item
+
 
 ###### Index
 
@@ -168,6 +169,17 @@ def operator_rotate(ctx):
 @operator_func(Operator.Index, DataType.Number)
 def operator_rotate(ctx, index):
     yield ctx.peek_stack(index.value)
+
+
+###### Drop
+
+@operator_func(Operator.Drop, DataType.Bool)
+@operator_func(Operator.Drop, DataType.Number)
+@operator_func(Operator.Drop, DataType.String)
+@operator_func(Operator.Drop, DataType.Array)
+@operator_func(Operator.Drop, DataType.Block)
+def operator_rotate(ctx, item):
+    return ()  # no-op, just drop the item
 
 
 ###### Add
@@ -212,6 +224,19 @@ def operator_sub(ctx, a, b):
 
 ###### Mul
 
+@operator_permute(Operator.Mul, DataType.Number, DataType.Array)
+def operator_mul(ctx, repeat, array):
+    yield ArrayValue([
+        data for data in array.value for i in range(repeat.value)
+    ])
+
+# array/string repeat
+# @operator_permute(Operator.Mul, DataType.Number, DataType.Array)
+@operator_permute(Operator.Mul, DataType.Number, DataType.String)
+def operator_mul(ctx, repeat, text):
+    text = ''.join(text.value for i in range(repeat.value))
+    yield StringValue(text)
+
 @operator_func(Operator.Mul, DataType.Number, DataType.Number)
 def operator_mul(ctx, a, b):
     yield NumberValue(a.value * b.value)
@@ -222,7 +247,8 @@ if __name__ == '__main__':
     from myscript.parser import Parser
     from myscript.runtime import ScriptRuntime
 
-    # print(OP_REGISTRY)
+    from pprint import pprint
+    pprint(OP_REGISTRY)
     
     tests = [
         """ [ 3 2]  [ 1 'b' { 'c' 'd' } ] ~ """,
@@ -232,6 +258,9 @@ if __name__ == '__main__':
         """ { -1 5 * [ 'step' ] + }! """,
         """ [ 1 '2 3 -'! 4 5 6 7 + ] """,
         """ 1 2 3 4 5 6 2$ """,
+        """ 1 2 3 4 5 6 2@ """,
+        """ 'str' 3 * 2 ['a' 'b' 'c'] *""",
+        """ 1 2 3 4 5 6 ... [] 1@ + 1@ + 1@ +""",
     ]
 
     for test in tests:

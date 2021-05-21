@@ -11,10 +11,10 @@ from typing import TYPE_CHECKING, NamedTuple
 from myscript.lang import DataType
 from myscript.values import ArrayValue
 from myscript.errors import ScriptError
-from myscript.operator import apply_operator
+from myscript.opimpl import apply_operator
 
 if TYPE_CHECKING:
-    from typing import Any, Union, Optional, Iterator, Iterable, Sequence, MutableSequence, ChainMap
+    from typing import Any, Union, Optional, Iterator, Iterable, Sequence, MutableSequence, Mapping, ChainMap
     from myscript.parser import Parser, Lexer, Token, Literal
     from myscript.values import DataValue
 
@@ -46,7 +46,7 @@ class ContextFrame:
 
     def pop_stack(self) -> DataValue:
         if len(self._stack) == 0:
-            raise ScriptStackError('stack is empty')
+            raise ScriptError('stack is empty')
         return self._stack.popleft()
 
     def iter_stack(self) -> Iterator[DataValue]:
@@ -63,7 +63,7 @@ class ContextFrame:
     def insert_stack(self, idx: int, value: DataValue) -> None:
         self._stack.insert(idx, value)
 
-    def delete_stack(self, idx: int) -> None:
+    def remove_stack(self, idx: int) -> None:
         del self._stack[idx]
 
     def exec(self, prog: Union[str, Iterable[Token]]) -> None:
@@ -97,7 +97,7 @@ class ContextFrame:
             name = token.item.name
             if name not in self._namespace:
                 raise ScriptError(f"could not resolve name '{name}'", token)
-            return _namespace[name]
+            return self._namespace[name]
         if token.is_literal():
             if token.item.type == DataType.Array:
                 return self._eval_array(token)
@@ -121,9 +121,9 @@ class ScriptRuntime:
         self.root.exec(self.parser.get_tokens())
         
         for i, value in enumerate(self.root.iter_stack()):
-            print(f"[{i}]: {value}")
+            print(f"[{i}]: <{value.type.name}> {value!s}")
 
-    def get_globals() -> Mapping[str, DataValue]:
+    def get_globals(self) -> Mapping[str, DataValue]:
         return self.root.get_namespace()
 
 

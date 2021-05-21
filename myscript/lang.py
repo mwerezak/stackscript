@@ -58,7 +58,7 @@ class Operator(Enum):
 
     Add     = OperatorDef(r'\+(?!\+)')   # add, concat
     Sub     = OperatorDef(r'-')    # subtract, set diff
-    Mul     = OperatorDef(r'\*(?!\*)')   # mult, block execute times, array repeat, join, fold
+    Mul     = OperatorDef(r'\*(?!\*)')   # mult, block execute times, array repeat
     Div     = OperatorDef(r'/')    # div, split, split in groups of size, unfold, each
     Mod     = OperatorDef(r'%')    # mod, map, every ith element, clean split
 
