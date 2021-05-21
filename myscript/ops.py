@@ -201,23 +201,24 @@ def operator_break(ctx):
 # concatenate arrays
 @operator_func(Operator.Add, DataType.Array, DataType.Array)
 def operator_add(ctx, a, b):
-    yield ArrayValue([*a, *b])
+    yield ArrayValue(
+        data for array in (a, b)
+        for data in array.unpack()
+    )
 
 # append item to end of array
 @operator_func(Operator.Add, DataType.Array, DataType.String)
 @operator_func(Operator.Add, DataType.Array, DataType.Number)
 @operator_func(Operator.Add, DataType.Array, DataType.Bool)
 def operator_add(ctx, arr, item):
-    arr.value.append(item)
-    yield arr
+    yield ArrayValue([*arr, item])
 
 # insert item at beginning of array
 @operator_func(Operator.Add, DataType.String, DataType.Array)
 @operator_func(Operator.Add, DataType.Number, DataType.Array)
 @operator_func(Operator.Add, DataType.Bool,   DataType.Array)
 def operator_add(ctx, item, arr):
-    arr.value.insert(0, item)
-    yield arr
+    yield ArrayValue([item, *arr])
 
 # concatenate strings
 @operator_func(Operator.Add, DataType.String, DataType.String)
@@ -285,6 +286,15 @@ def operator_div(ctx, block, array):
         result.extend(sub_ctx.iter_stack_result())
     yield ArrayValue(result)
 
+@operator_permute(Operator.Div, DataType.Block, DataType.String)
+def operator_div(ctx, block, string):
+    result = []
+    for item in string:
+        sub_ctx = ctx.create_child()
+        sub_ctx.push_stack(item)
+        sub_ctx.exec(block)
+        result.extend(sub_ctx.iter_stack_result())
+    yield ArrayValue(result)
 
 @operator_func(Operator.Div, DataType.Number, DataType.Number)
 def operator_div(ctx, a, b):
@@ -300,6 +310,14 @@ def operator_mod(ctx, block, array):
         ctx.push_stack(item)
         ctx.exec(block)
     return ()
+
+@operator_permute(Operator.Mod, DataType.Block, DataType.String)
+def operator_mod(ctx, block, string):
+    for item in string:
+        ctx.push_stack(item)
+        ctx.exec(block)
+    return ()
+
 
 @operator_func(Operator.Mod, DataType.Number, DataType.Number)
 def operator_mod(ctx, a, b):
@@ -378,6 +396,9 @@ def operator_gt(ctx, a, b):
 def operator_ge(ctx, a, b):
     yield BoolValue(a >= b)
 
+###### Equality
+
+@operator_func(Operator.Equal,    DataType.Array,  DataType.Array)
 @operator_func(Operator.Equal,    DataType.String, DataType.String)
 @operator_permute(Operator.Equal, DataType.String, DataType.Number)
 @operator_permute(Operator.Equal, DataType.String, DataType.Bool)
@@ -392,6 +413,7 @@ def operator_equal(ctx, a, b):
         yield BoolValue(a.value == b.value)
     else:
         yield BoolValue( abs(a.value - b.value) < 10**-9 )
+
 
 if __name__ == '__main__':
     from myscript.parser import Parser
@@ -415,6 +437,8 @@ if __name__ == '__main__':
         """ [] [ 1 2 3 ] {2* 1@ +}% """,
         """ [1 2 3 4 5 6] [2 4 5] -""",
         """ [7 6; 5 4 3 2 1] {3 <=}/ 0 false = """,
+        """ [ 1 2 3 ] {2*}/ . [ 2 4 6 ] = """,
+
     ]
 
     for test in tests:

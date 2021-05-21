@@ -5,17 +5,16 @@
 
 from __future__ import annotations
 
-from enum import Enum, auto
 from functools import total_ordering
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, NamedTuple, TypeVar, Generic, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, TypeVar, Generic
 
-from typing import Union, Sequence, MutableSequence
+from typing import Union, Iterator, Iterable, Sequence
 
 from myscript.lang import DataType
 
 if TYPE_CHECKING:
-    from typing import Any, Callable
+    from typing import Any
     from myscript.parser import Token
     
 
@@ -32,6 +31,8 @@ def _data(type: DataType):
 _VT = TypeVar('_VT')
 
 class DataValue(ABC, Generic[_VT]):
+    _type: DataType
+
     def __init__(self, value: _VT):
         self._value = value
 
@@ -124,6 +125,9 @@ class StringValue(DataValue[str]):
 
 @_data(DataType.Array)
 class ArrayValue(DataValue[Sequence[DataValue]]):
+    def __init__(self, value: Iterable[DataValue]):
+        super().__init__(tuple(value))
+
     def __repr__(self) -> str:
         return f'{self.__class__.__qualname__}({self.value!r})'
 
@@ -140,10 +144,7 @@ class ArrayValue(DataValue[Sequence[DataValue]]):
     def __iter__(self) -> Iterator[DataValue]:
         return iter(self.value)
 
-    def __hash__(self) -> int:
-        return hash(self)
-
-    def unpack(self) -> Iterable[Any]:
+    def unpack(self) -> Iterator[Any]:
         for item in self:
             yield item.value
 
