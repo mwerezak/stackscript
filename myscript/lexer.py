@@ -172,7 +172,7 @@ def t_identifier(self, t):
         t.type = reserved.name
         t.value = t.value, reserved
     else:
-        t.value = Identifier(t.value)
+        t.value = t.value, Identifier(t.value)
     return t
 Lexer.t_identifier = t_identifier
 
@@ -181,7 +181,7 @@ Lexer.t_identifier = t_identifier
 if __name__ == '__main__':
     tests = [
         "'dsds' +2.4 576 { true} foobar xor \"false\" '?' ++ while [  + -.333 -] if ** ",
-        "1 1+ ",
+        "1 1+ >> > < << not ! ~ ",
     ]
 
     for test in tests:
@@ -189,4 +189,4 @@ if __name__ == '__main__':
         lexer = Lexer()
         lexer.input(test)
         for tok in lexer.get_tokens():
-            print(tok)
+            print(repr(tok))

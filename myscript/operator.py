@@ -10,6 +10,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, NamedTuple
 
 from myscript.lang import Operator, DataType, DataValue
+from myscript.lang import (BoolValue, NumberValue, StringValue, ArrayValue, BlockValue)
 from myscript.errors import ScriptError
 
 if TYPE_CHECKING:
@@ -101,35 +102,59 @@ class _ReorderFunc(NamedTuple):
         return self.func(ctx, *( args[i] for i in self.permute ))
 
 
-## Operators
+## Operator Definitions
 
+###### Invert
 
-## Add
+# "dump" the array onto the stack
+@operator_func(Operator.Invert, DataType.Array)
+def operator_invert(ctx, o):
+    yield from o.value 
 
+# bitwise not
+@operator_func(Operator.Invert, DataType.Number)
+def operator_invert(ctx, x):
+    yield NumberValue(~x.value)
+
+###### Inspect
+@operator_func(Operator.Inspect, DataType.Block)
+@operator_func(Operator.Inspect, DataType.Array)
+@operator_func(Operator.Inspect, DataType.String)
+@operator_func(Operator.Inspect, DataType.Number)
+@operator_func(Operator.Inspect, DataType.Bool)
+def operator_inspect(ctx, o):
+    yield StringValue(o.format_value())
+
+###### Add
+
+# concatenate arrays
 @operator_func(Operator.Add, DataType.Array, DataType.Array)
-def operator_add(ctx, a, b) -> Iterator[DataValue]:
-    yield DataValue(DataType.Array, b.value.extend(a.value))
+def operator_add(ctx, a, b):
+    yield ArrayValue([*a.value, *b.value])
 
+# append item to end of array
 @operator_coerce(Operator.Add, DataType.Array, DataType.String)
 @operator_coerce(Operator.Add, DataType.Array, DataType.Number)
 @operator_coerce(Operator.Add, DataType.Array, DataType.Bool)
-def operator_add(ctx, arr, item) -> Iterator[DataValue]:
+def operator_add(ctx, arr, item):
     arr.value.append(item)
     yield arr
 
+# concatenate strings
 @operator_func(Operator.Add, DataType.String, DataType.String)
-def operator_add(ctx, a, b) -> Iterator[DataValue]:
-    yield DataValue(DataType.String, a.value + b.value)
+def operator_add(ctx, a, b):
+    yield StringValue(a.value + b.value)
 
+# add numbers
 @operator_func(Operator.Add, DataType.Number, DataType.Number)
-def operator_add(ctx, a, b) -> Iterator[DataValue]:
-    yield DataValue(DataType.Number, a.value + b.value)
+def operator_add(ctx, a, b):
+    yield NumberValue(a.value + b.value)
 
 
-## Sub
+###### Sub
 
 @operator_func(Operator.Sub, DataType.Number, DataType.Number)
 def operator_sub(ctx, a, b):
-    yield DataValue(DataType.Number, a.value - b.value)
+    yield NumberValue(a.value - b.value)
 
 # print(OP_REGISTRY)

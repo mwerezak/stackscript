@@ -10,7 +10,7 @@ from functools import total_ordering
 from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, Sequence, MutableSequence
+    from typing import Any, Union, Callable, Sequence, MutableSequence
     from myscript.lexer import Token
 
 
@@ -35,7 +35,7 @@ class DataType(Enum):
     String      = DataDef(repr)             # str
     Array       = DataDef(_format_array)    # MutableSequence[DataValue]
     Block       = DataDef(_format_block)    # Sequence[Token]
-    Error       = DataDef(repr) # errors turn everything they touch into an error
+    # Error       = DataDef(repr) # errors turn everything they touch into an error
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__qualname__}.{self.name}>'
@@ -61,6 +61,24 @@ class DataValue(NamedTuple):
     def format_value(self) -> str:
         return self.type.format(self.value)
 
+# convenience constructors
+
+def BoolValue(b: bool) -> DataValue:
+    return DataValue(DataType.Bool, b)
+
+def NumberValue(n: Union[int, float]) -> DataValue:
+    return DataValue(DataType.Number, n)
+
+def StringValue(s: str) -> DataValue:
+    return DataValue(DataType.String, s)
+
+def ArrayValue(arr: MutableSequence[DataValue]) -> DataValue:
+    return DataValue(DataType.Array, arr)
+
+def BlockValue(block: Sequence[Token]) -> DataValue:
+    return DataValue(DataType.Block, block)
+
+
 
 class OperatorDef(NamedTuple):
     token: str
@@ -68,29 +86,32 @@ class OperatorDef(NamedTuple):
 class Operator(Enum):
     Invert  = OperatorDef(r'~')    # bitwise not, array dump
     Inspect = OperatorDef(r'`')
-    Call    = OperatorDef(r'!')    # evaluate a block or string and push results onto the stack
+    Eval    = OperatorDef(r'!')    # evaluate a block or string and push results onto the stack
     Rotate  = OperatorDef(r'@')    # move the ith stack element to top
     Index   = OperatorDef(r'\$')   # copy the ith stack element to top
+    Assign  = OperatorDef(r':')
+
     Add     = OperatorDef(r'\+(?!\+)')   # add, concat
     Sub     = OperatorDef(r'-')    # subtract, set diff
-
-
     Mul     = OperatorDef(r'\*(?!\*)')   # mult, block execute times, array repeat, join, fold
     Div     = OperatorDef(r'/')    # div, split, split in groups of size, unfold, each
     Mod     = OperatorDef(r'%')    # mod, map, every ith element, clean split
+
     BitOr   = OperatorDef(r'\|')   # bitwise/setwise or
     BitAnd  = OperatorDef(r'&')    # bitwise/setwise and
     BitXor  = OperatorDef(r'\^')   # bitwise/setwise xor
-    Swap    = OperatorDef(r'\\')
-    Assign  = OperatorDef(r':')
-    Less    = OperatorDef(r'<')    # less than, elements less than index
-    Greater = OperatorDef(r'>')    # greater than, elements greater than or equal to index
+    LShift  = OperatorDef(r'<<')
+    RShift  = OperatorDef(r'>>')
+
+    Less    = OperatorDef(r'<(?!<)')    # less than, elements less than index
+    Greater = OperatorDef(r'>(?!>)')    # greater than, elements greater than or equal to index
     Equal   = OperatorDef(r'=')    # equal to, element at index
     Size    = OperatorDef(r'\#')
     Dup     = OperatorDef(r'\.')
     Pow     = OperatorDef(r'\*\*')
     Dec     = OperatorDef(r'--')   # deincrement, left uncons
     Inc     = OperatorDef(r'\+\+') # increment, right uncons
+
     Not     = OperatorDef(r'not')
     And     = OperatorDef(r'and')
     Or      = OperatorDef(r'or')
