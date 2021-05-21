@@ -34,9 +34,9 @@ class Operator(Enum):
     Not     = OperatorDef(r'!')    # logical not
     Rotate  = OperatorDef(r'@')
     Index   = OperatorDef(r'\$')   # stack ith, sort(by)
-    Add     = OperatorDef(r'\+[^+]')   # add, concat
+    Add     = OperatorDef(r'\+(?!\+)')   # add, concat
     Sub     = OperatorDef(r'-')    # subtract, set diff
-    Mul     = OperatorDef(r'\*[^*]')   # mult, block execute times, array repeat, join, fold
+    Mul     = OperatorDef(r'\*(?!\*)')   # mult, block execute times, array repeat, join, fold
     Div     = OperatorDef(r'/')    # div, split, split in groups of size, unfold, each
     Mod     = OperatorDef(r'%')    # mod, map, every ith element, clean split
     BitOr   = OperatorDef(r'\|')   # bitwise/setwise or

@@ -26,6 +26,19 @@ class Token(NamedTuple):
     lineno: int
     lexpos: int
 
+    def is_operator(self) -> bool:
+        return isinstance(self.data, Operator)
+
+    def is_literal(self) -> bool:
+        return isinstance(self.data, Literal)
+
+    def is_identifier(self) -> bool:
+        return isinstance(self.data, Identifier)
+
+    def is_special(self, special: SpecialToken) -> bool:
+        return self.data == special
+
+
 class Literal(NamedTuple):
     type: DataType
     value: Any
@@ -41,7 +54,6 @@ class SpecialToken(Enum):
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__qualname__}.{self.name}>'
-
 
 ## PLY Rules
 class Lexer:
@@ -107,7 +119,7 @@ class Lexer:
         return t
 
     def t_integer(self, t):
-        r'[+-]?[0-9]+[^.]'
+        r'[+-]?[0-9]+(?!\.)'
         t.value = Literal(DataType.Integer, int(t.value))
         return t
 
@@ -171,10 +183,14 @@ Lexer.t_identifier = t_identifier
 
 
 if __name__ == '__main__':
-    import sys
+    tests = [
+        "'dsds' +2.4 576 { true} foobar xor \"false\" '?' ++ while [  + -.333 -] if ** ",
+        "1 1+ ",
+    ]
 
-    lexer = Lexer()
-    lexer.input(sys.argv[1])
-    
-    for tok in lexer.get_tokens():
-        print(tok)
+    for test in tests:
+        print(test)
+        lexer = Lexer()
+        lexer.input(test)
+        for tok in lexer.get_tokens():
+            print(tok)
