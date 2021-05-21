@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from collections import deque, ChainMap as chainmap
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING
 
 from myscript.lang import DataType
 from myscript.values import ArrayValue
@@ -14,29 +14,29 @@ from myscript.errors import ScriptError
 from myscript.ops import apply_operator
 
 if TYPE_CHECKING:
-    from typing import Any, Union, Optional, Iterator, Iterable, Sequence, MutableSequence, Mapping, ChainMap
-    from myscript.parser import Parser, Lexer, Token, Literal
+    from typing import Union, Optional, Iterator, Iterable, Mapping, ChainMap, Deque
+    from myscript.parser import Parser, Token
     from myscript.values import DataValue
 
 
 
 
 class ContextFrame:
-    _stack: MutableSequence[DataValue]
+    _stack: Deque[DataValue]
     _namespace: ChainMap[str, DataValue]
-    def __init__(self, runtime: ScriptRuntime, parent: Optional[ContextFrame]):
+    def __init__(self, runtime: ScriptRuntime, parent: Optional[ContextFrame], contents: Iterable[DataValue] = ()):
         self.runtime = runtime
         self.parent = parent
-        self._stack = deque()  # index 0 is the TOP
+        self._stack = deque(contents)  # index 0 is the TOP
 
         if parent is None:
             self._namespace = chainmap()
         else:
             self._namespace = parent._namespace.new_child()
 
-    def create_child(self) -> ContextFrame:
+    def create_child(self, contents: Iterable[DataValue] = ()) -> ContextFrame:
         """Create a new child frame from this one."""
-        return ContextFrame(self.runtime, self)
+        return ContextFrame(self.runtime, self, contents)
 
     def get_namespace(self) -> Mapping[str, DataValue]:
         return self._namespace

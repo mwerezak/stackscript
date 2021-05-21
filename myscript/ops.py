@@ -142,9 +142,9 @@ def operator_inspect(ctx, o):
 
 # evaluate a block in its own nested context
 @operator_func(Operator.Eval, DataType.Block)
-def operator_eval(ctx, o):
+def operator_eval(ctx, block):
     sub_ctx = ctx.create_child()
-    sub_ctx.exec(o.value)
+    sub_ctx.exec(block)
     yield from sub_ctx.iter_stack_result()
 
 # evaluate a string directly in the current context
@@ -168,7 +168,7 @@ def operator_rotate(ctx, index):
 
 # copy the ith stack element to top
 @operator_func(Operator.Index, DataType.Number)
-def operator_rotate(ctx, index):
+def operator_index(ctx, index):
     yield ctx.peek_stack(index.value)
 
 
@@ -179,7 +179,7 @@ def operator_rotate(ctx, index):
 @operator_func(Operator.Drop, DataType.String)
 @operator_func(Operator.Drop, DataType.Array)
 @operator_func(Operator.Drop, DataType.Block)
-def operator_rotate(ctx, item):
+def operator_drop(ctx, item):
     return ()  # no-op, just drop the item
 
 
@@ -225,14 +225,22 @@ def operator_sub(ctx, a, b):
 
 ###### Mul
 
+# execute a block a certain number of times in the current context
+@operator_permute(Operator.Mul, DataType.Number, DataType.Block)
+def operator_mul(ctx, repeat, block):
+    for i in range(repeat.value):
+        ctx.exec(block)
+    return ()
+
+
+# array/string repeat
 @operator_permute(Operator.Mul, DataType.Number, DataType.Array)
 def operator_mul(ctx, repeat, array):
     yield ArrayValue([
-        data for data in array.value for i in range(repeat.value)
+        data for data in array for i in range(repeat.value)
     ])
 
 # array/string repeat
-# @operator_permute(Operator.Mul, DataType.Number, DataType.Array)
 @operator_permute(Operator.Mul, DataType.Number, DataType.String)
 def operator_mul(ctx, repeat, text):
     text = ''.join(text.value for i in range(repeat.value))
@@ -242,6 +250,28 @@ def operator_mul(ctx, repeat, text):
 def operator_mul(ctx, a, b):
     yield NumberValue(a.value * b.value)
 
+
+###### Div
+
+# execute a block over all elements.
+@operator_permute(Operator.Div, DataType.Block, DataType.Array)
+def operator_div(ctx, block, array):
+    result = []
+    for item in array:
+        sub_ctx = ctx.create_child()
+        sub_ctx.push_stack(item)
+        sub_ctx.exec(block)
+        result.extend(sub_ctx.iter_stack_result())
+    yield ArrayValue(result)
+
+
+@operator_func(Operator.Div, DataType.Number, DataType.Number)
+def operator_div(ctx, a, b):
+    yield NumberValue(a.value / b.value)
+
+
+    # Div     = OperatorDef(r'/')    # div, split, split in groups of size, unfold, each
+    # Mod     = OperatorDef(r'%')    # mod, map, every ith element, clean split
 
 
 if __name__ == '__main__':
@@ -261,7 +291,8 @@ if __name__ == '__main__':
         """ 1 2 3 4 5 6 2$ """,
         """ 1 2 3 4 5 6 2@ """,
         """ 'str' 3 * 2 ['a' 'b' 'c'] *""",
-        """ 1 2 3 4 5 6 ... [] 3 { 1@ + } * """,
+        """ 1 2 3 4 5 6 ... [] { 1@ + } 3* """,
+        """ [ 1 2 3 ] {2*}/ """,
     ]
 
     for test in tests:

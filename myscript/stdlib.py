@@ -5,6 +5,9 @@
 
 """ TODO:
 abs
+floor
+ceil
+round
 base
 
 range
@@ -24,6 +27,7 @@ print
 println
 
 join
+split
 
 rand
 randint

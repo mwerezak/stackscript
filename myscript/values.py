@@ -70,6 +70,9 @@ class BoolValue(DataValue[bool]):
     def format(self) -> str:
         return 'true' if self.value else 'false'
 
+    def __bool__(self) -> bool:
+        return self.value
+
 @_data(DataType.Number)
 class NumberValue(DataValue[Union[int, float]]):
     def __repr__(self) -> str:
@@ -92,6 +95,13 @@ class StringValue(DataValue[str]):
     def format(self) -> str:
         return repr(self.value)
 
+    def __len__(self) -> int:
+        return len(self.value)
+
+    def __iter__(self) -> Iterator[StringValue]:
+        for ch in self.value:
+            yield StringValue(ch)
+
 @_data(DataType.Array)
 class ArrayValue(DataValue[MutableSequence[DataValue]]):
     def __repr__(self) -> str:
@@ -103,6 +113,13 @@ class ArrayValue(DataValue[MutableSequence[DataValue]]):
     def format(self) -> str:
         content = ' '.join(value.format() for value in self.value)
         return '[' + content + ']'
+
+    def __len__(self) -> int:
+        return len(self.value)
+
+    def __iter__(self) -> Iterator[DataValue]:
+        return iter(self.value)
+
 
 @_data(DataType.Block)
 class BlockValue(DataValue[Sequence['Token']]):
@@ -116,3 +133,5 @@ class BlockValue(DataValue[Sequence['Token']]):
         content = ' '.join(token.text for token in self.value)
         return '{ ' + content + ' }'
 
+    def __iter__(self) -> Iterator['Token']:
+        return iter(self.value)
