@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
     from typing import Any, Union, Callable, Sequence, MutableSequence
-    from myscript.lexer import Token
+    from myscript.parser import Token
 
 
 def _format_bool(b: bool) -> str:

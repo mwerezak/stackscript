@@ -13,7 +13,7 @@ from myscript.lang import DataType
 
 if TYPE_CHECKING:
     from typing import Any, Union, Callable, Sequence, MutableSequence
-    from myscript.lexer import Token
+    from myscript.parser import Token
 
 _DATA_TYPES = {}
 

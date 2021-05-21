@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 
 # map operator -> arity -> signature -> operator data
-OP_REGISTRY: MutableMapping[Operator, MutableSequence[MutableMapping[Signature, 'OperatorData']]] = defaultdict(list)
+OP_REGISTRY: MutableMapping[Operator, MutableSequence[MutableMapping[Signature, OperatorData]]] = defaultdict(list)
 
 
 class OperatorData(NamedTuple):
@@ -118,6 +118,7 @@ def operator_invert(ctx, x):
     yield NumberValue(~x.value)
 
 ###### Inspect
+
 @operator_func(Operator.Inspect, DataType.Block)
 @operator_func(Operator.Inspect, DataType.Array)
 @operator_func(Operator.Inspect, DataType.String)
@@ -125,6 +126,13 @@ def operator_invert(ctx, x):
 @operator_func(Operator.Inspect, DataType.Bool)
 def operator_inspect(ctx, o):
     yield StringValue(o.format())
+
+
+###### Eval
+
+def operator_eval(ctx, o):
+    pass
+
 
 ###### Add
 
@@ -162,21 +170,20 @@ def operator_sub(ctx, a, b):
 
 
 if __name__ == '__main__':
-    from myscript.parser import Lexer
+    from myscript.parser import Parser
     from myscript.runtime import ScriptRuntime
 
     tests = [
         """ [ 3 2]  [ 1 'b' { 'c' 'd' } ] ~ """,
-        """ [ 3 2]  [ 1 'b' { 'c' 'd' } ] ` """,
-        # """ [ 1 'b' [ 3 2]  { 'c' 'd' } ]  """,
+        """ [ 1 'b' [ 3 2]`  { 'c' 'd' } ]`  """,
         """ [ 1 2 3 - 4 5 6 7 + ] """,
         """ 'c' ['a' 'b'] + """,
         """ { -1 5 * [ 'step' ] + }! """,
     ]
 
-    lexer = Lexer()
     for test in tests:
         print('>>>', test)
 
-        runtime = ScriptRuntime(lexer)
+        parser = Parser()
+        runtime = ScriptRuntime(parser)
         runtime.exec(test)

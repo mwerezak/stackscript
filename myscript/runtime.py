@@ -15,7 +15,7 @@ from myscript.operator import apply_operator
 
 if TYPE_CHECKING:
     from typing import Any, Optional, Iterator, Iterable, Sequence, MutableSequence, ChainMap
-    from myscript.parser import Lexer, Token, Literal
+    from myscript.parser import Parser, Lexer, Token, Literal
     from myscript.values import DataValue
 
 
@@ -82,21 +82,22 @@ class ContextFrame:
 
 
 class ScriptRuntime:
-    def __init__(self, lexer: Lexer):
-        self.lexer = lexer
+    def __init__(self, parser: Parser):
+        self.parser = parser
         self.root = ContextFrame()
 
     def exec(self, text: str) -> None:
-        self.lexer.input(text)
-        self.root.exec(self.lexer.get_tokens())
+        self.parser.input(text)
+        self.root.exec(self.parser.get_tokens())
         
         # print(self.root.stack)
         for i, value in enumerate(reversed(self.root.stack)):
             print(f"[{i}]: {value}")
 
 
+
 if __name__ == '__main__':
-    from myscript.parser import Lexer
+    from myscript.parser import Parser
 
     tests = [
         """1 1+ """,
@@ -105,11 +106,11 @@ if __name__ == '__main__':
         """ { -1 5 * [ 'step' ] + }! """,
     ]
 
-    lexer = Lexer()
+    parser = Parser()
     for test in tests:
         print('>>>', test)
 
-        runtime = ScriptRuntime(lexer)
+        runtime = ScriptRuntime(parser)
         runtime.exec(test)
 
 

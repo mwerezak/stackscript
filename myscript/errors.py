@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Optional
-    from myscript.lexer import Token
+    from myscript.parser import Token
 
 
 class ScriptError(Exception):
