@@ -25,59 +25,22 @@ def _format_block(block: Sequence[Token]) -> str:
 
 
 class DataDef(NamedTuple):
-    format: Callable[[_VT], str]
+    pass
 
-@total_ordering
 class DataType(Enum):
     """Data are things that can be pushed onto the stack."""
-    Bool        = DataDef(_format_bool)     # bool
-    Number      = DataDef(str)              # int or float
-    String      = DataDef(repr)             # str
-    Array       = DataDef(_format_array)    # MutableSequence[DataValue]
-    Block       = DataDef(_format_block)    # Sequence[Token]
-    # Error       = DataDef(repr) # errors turn everything they touch into an error
+    Bool        = auto()
+    Number      = auto() 
+    String      = auto() 
+    Array       = auto() 
+    Block       = auto() 
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__qualname__}.{self.name}>'
 
-    def __lt__(self, other: DataType) -> bool:
-        return self.priority < other.priority
-
     @property
     def format(self) -> Callable[[Any], str]:
         return self.value.format
-
-
-class DataValue(NamedTuple):
-    type: DataType
-    value: Any
-
-    def __repr__(self) -> str:
-        return f'<Value({self.type.name}: {self.value!r})>'
-
-    def __str__(self) -> str:
-        return self.format_value()
-
-    def format_value(self) -> str:
-        return self.type.format(self.value)
-
-# convenience constructors
-
-def BoolValue(b: bool) -> DataValue:
-    return DataValue(DataType.Bool, b)
-
-def NumberValue(n: Union[int, float]) -> DataValue:
-    return DataValue(DataType.Number, n)
-
-def StringValue(s: str) -> DataValue:
-    return DataValue(DataType.String, s)
-
-def ArrayValue(arr: MutableSequence[DataValue]) -> DataValue:
-    return DataValue(DataType.Array, arr)
-
-def BlockValue(block: Sequence[Token]) -> DataValue:
-    return DataValue(DataType.Block, block)
-
 
 
 class OperatorDef(NamedTuple):

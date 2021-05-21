@@ -9,12 +9,13 @@ import itertools
 from collections import defaultdict
 from typing import TYPE_CHECKING, NamedTuple
 
-from myscript.lang import Operator, DataType, DataValue
-from myscript.lang import (BoolValue, NumberValue, StringValue, ArrayValue, BlockValue)
+from myscript.lang import Operator, DataType
+from myscript.values import BoolValue, NumberValue, StringValue, ArrayValue, BlockValue
 from myscript.errors import ScriptError
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Iterator, Sequence, MutableMapping, MutableSequence
+    from myscript.values import DataValue
     from myscript.runtime import ContextFrame
 
     Signature = Sequence[DataType]
@@ -56,7 +57,7 @@ def _search_registery(op: Operator, peek: Iterator[DataValue]) -> OperatorData:
         except StopIteration:
             break
 
-    args_msg = '\n'.join(f'[{i}]: {data}' for i, data in enumerate(args))
+    args_msg = '\n'.join(f'[{i}]: {data}' for i, data in enumerate(args)) if len(args) else '[]'
     raise ScriptError(f"Invalid operands for operator '{op.name}':\n{args_msg}")
 
 def _register_operator(opdata: OperatorData) -> None:

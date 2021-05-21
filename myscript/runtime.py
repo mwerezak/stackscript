@@ -8,13 +8,15 @@ from __future__ import annotations
 from collections import deque, ChainMap as chainmap
 from typing import TYPE_CHECKING, NamedTuple
 
-from myscript.lang import DataType, DataValue
+from myscript.lang import DataType
+from myscript.values import ArrayValue
 from myscript.errors import ScriptError
 from myscript.operator import apply_operator
 
 if TYPE_CHECKING:
     from typing import Any, Optional, Iterator, Iterable, Sequence, MutableSequence, ChainMap
-    from myscript.lexer import Lexer, Token, Literal
+    from myscript.parser import Lexer, Token, Literal
+    from myscript.values import DataValue
 
 
 
@@ -55,31 +57,28 @@ class ContextFrame:
             except Exception as e:
                 raise ScriptError("error executing program", token) from e
 
-    def eval(self, expr: Token) -> DataValue:
-        if expr.is_operator():
-            raise ValueError("cannot evaluate operator", expr.item)
-        return self._eval(expr)
+    def eval(self, token: Token) -> DataValue:
+        if token.is_operator():
+            raise ValueError("cannot evaluate operator", token.item)
+        return self._eval(token)
 
-    def _eval(self, expr: Token) -> DataValue:
-        if expr.is_identifier():
-            name = expr.item.name
+    def _eval(self, token: Token) -> DataValue:
+        if token.is_identifier():
+            name = token.item.name
             if name not in self.namespace:
-                raise ScriptError(f"could not resolve name '{name}'", expr)
+                raise ScriptError(f"could not resolve name '{name}'", token)
             return namespace[name]
-        if expr.is_literal():
-            if expr.item.type == DataType.Array:
-                return self._eval_array(expr.item)
-            return DataValue(expr.item.type, expr.item.value)
-        raise ScriptError(f"could not evaluate token", expr)
+        if token.is_literal():
+            if token.item.type == DataType.Array:
+                return self._eval_array(token)
+            return token.item.get_value()
+        raise ScriptError(f"could not evaluate token", token)
 
-    def _eval_array(self, expr: Literal) -> DataValue:
+    def _eval_array(self, token: Token) -> DataValue:
         # create a new context in which to evaluate the array
         array_ctx = ContextFrame(self)
-        array_ctx.exec(expr.value)
-        return DataValue(
-            DataType.Array,
-            list(array_ctx.stack),
-        )
+        array_ctx.exec(token.item.value)
+        return ArrayValue(list(array_ctx.stack))
 
 
 class ScriptRuntime:
@@ -97,13 +96,13 @@ class ScriptRuntime:
 
 
 if __name__ == '__main__':
-    from myscript.lexer import Lexer
+    from myscript.parser import Lexer
 
     tests = [
         """1 1+ """,
         """ [ 1 2 3 - 4 5 6 7 + ] """,
         """ 'c' ['a' 'b'] + """,
-        """ { -1 5 * [ 'step' ] + } """,
+        """ { -1 5 * [ 'step' ] + }! """,
     ]
 
     lexer = Lexer()
