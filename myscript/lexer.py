@@ -50,6 +50,7 @@ class Identifier(NamedTuple):
 ## PLY Rules
 class Lexer:
     reserved = {
+        'not'   : Operator.Not,
         'and'   : Operator.And,
         'or'    : Operator.Or,
         'xor'   : Operator.Xor,
@@ -92,12 +93,12 @@ class Lexer:
 
     def t_integer(self, t):
         r'[+-]?[0-9]+(?!\.)'
-        t.value = Literal(DataType.Integer, int(t.value))
+        t.value = Literal(DataType.Number, int(t.value))
         return t
 
     def t_float(self, t):
         r'[+-]?([0-9]+\.?[0-9]*|[0-9]*\.?[0-9]+)'
-        t.value = Literal(DataType.Float, float(t.value))
+        t.value = Literal(DataType.Number, float(t.value))
         return t
 
     def t_array(self, t):

@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections import deque, ChainMap as chainmap
 from typing import TYPE_CHECKING, NamedTuple
 
-from myscript.lang import DataType
+from myscript.lang import DataType, DataValue
 from myscript.errors import ScriptNameError
 from myscript.operator import apply_operator
 
@@ -17,15 +17,6 @@ if TYPE_CHECKING:
     from myscript.lexer import Lexer, Token, Literal
 
 
-class DataValue(NamedTuple):
-    type: DataType
-    value: Any
-
-    def __repr__(self) -> str:
-        return f'<Value({self.type.name}: {self.value!r})>'
-
-    def __str__(self) -> str:
-        return str(self.value)
 
 
 class ContextFrame:
@@ -43,15 +34,23 @@ class ContextFrame:
         self.stack.append(value)
 
     def pop_stack(self) -> DataValue:
+        if len(self.stack) == 0:
+            raise ScriptStackError('stack is empty (invalid number of arguments)')
         return self.stack.pop()
 
     def exec(self, prog: Iterable[Token]) -> None:
         for token in prog:
-            if token.is_operator():
-                apply_operator(self, token.item)
-            else:
-                value = self._eval(token)
-                self.push_stack(value)
+            try:
+                if token.is_operator():
+                    apply_operator(self, token.item)
+                else:
+                    value = self._eval(token)
+                    self.push_stack(value)
+            except ScriptError as e:
+                e.token = token
+                raise e
+            except Exception as e:
+                raise ScriptError("error executing program", token) from e
 
     def eval(self, expr: Token) -> DataValue:
         if expr.is_operator():
@@ -62,13 +61,13 @@ class ContextFrame:
         if expr.is_identifier():
             name = expr.item.name
             if name not in self.namespace:
-                raise ScriptNameError(f"could not resolve name '{name}'", expr.lineno, expr.lexpos)
+                raise ScriptNameError(f"could not resolve name '{name}'", expr)
             return namespace[name]
         if expr.is_literal():
             if expr.item.type == DataType.Array:
                 return self._eval_array(expr.item)
             return DataValue(expr.item.type, expr.item.value)
-        raise ScriptError(f"could not evaluate token", expr, expr.lineno, expr.lexpos)
+        raise ScriptError(f"could not evaluate token", expr)
 
     def _eval_array(self, expr: Literal) -> DataValue:
         # create a new context in which to evaluate the array

@@ -8,26 +8,31 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    pass
+    from typing import Optional
+    from myscript.lexer import Token
 
 
 class ScriptError(Exception):
     """Raised when there is a problem with an executing script (not the runtime!)"""
 
-    def __init__(self, message: str, lineno: int, lexpos: int):
-        self.lineno = lineno
-        self.lexpos = lexpos
+    def __init__(self, message: str, token: Optional[Token] = None):
+        self.token = token
         super().__init__(message)
 
     def __str__(self) -> str:
-        return '\n'.join([
-            super().__str__(),
-            f"lineno: {self.lineno}", 
-            f"pos: {self.lexpos}",
-        ])
+        message = [ super().__str__() ]
+        if self.token is not None:
+            message.extend([
+                f"token: {self.token}",
+                f"lineno: {self.token.lineno}", 
+                f"pos: {self.token.lexpos}",
+            ])
+        return '\n'.join(message)
 
 class ScriptSyntaxError(ScriptError): pass
 
 class ScriptNameError(ScriptError): pass
+
+class ScriptStackError(ScriptError): pass
 
 class ScriptTypeError(ScriptError): pass
