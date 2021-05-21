@@ -29,10 +29,4 @@ class ScriptError(Exception):
             ])
         return '\n'.join(message)
 
-class ScriptSyntaxError(ScriptError): pass
-
-class ScriptNameError(ScriptError): pass
-
-class ScriptStackError(ScriptError): pass
-
-class ScriptTypeError(ScriptError): pass
+        

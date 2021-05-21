@@ -22,12 +22,16 @@ class LexerError(Exception): pass
 
 
 class Token(NamedTuple):
+    text: str
     item: Union[Operator, Literal, Identifier]
     lineno: int
     lexpos: int
 
     def __repr__(self) -> str:
         return f'{self.__class__.__qualname__}({self.item!r})'
+
+    def __str__(self) -> str:
+        return self.text
 
     def is_operator(self) -> bool:
         return isinstance(self.item, Operator)
@@ -61,11 +65,6 @@ class Lexer:
     }
 
     tokens = [
-        'start_block',
-        'end_block',
-        'start_arr',
-        'end_arr',
-
         ## Operators
         *(op.name for op in Operator),
 
@@ -88,17 +87,22 @@ class Lexer:
 
     def t_bool(self, t):
         r'true|false'
-        t.value = Literal(DataType.Bool, t.value == 'true')
+        t.value = t.value, Literal(DataType.Bool, t.value == 'true')
         return t
 
     def t_integer(self, t):
         r'[+-]?[0-9]+(?!\.)'
-        t.value = Literal(DataType.Number, int(t.value))
+        t.value = t.value, Literal(DataType.Number, int(t.value))
         return t
 
     def t_float(self, t):
         r'[+-]?([0-9]+\.?[0-9]*|[0-9]*\.?[0-9]+)'
-        t.value = Literal(DataType.Number, float(t.value))
+        t.value = t.value, Literal(DataType.Number, float(t.value))
+        return t
+
+    def t_string(self, t):
+        r'\'.*?\'|".*?"'
+        t.value = t.value, Literal(DataType.String, t.value[1:-1])
         return t
 
     def t_array(self, t):
@@ -108,12 +112,7 @@ class Lexer:
         sublexer.input(t.value[1:-1])
         content = tuple(self._emit_tokens(sublexer))
 
-        t.value = Literal(DataType.Array, content)
-        return t
-
-    def t_string(self, t):
-        r'\'.*?\'|".*?"'
-        t.value = Literal(DataType.String, t.value[1:-1])
+        t.value = t.value, Literal(DataType.Array, content)
         return t
 
     def t_block(self, t):
@@ -123,7 +122,7 @@ class Lexer:
         sublexer.input(t.value[1:-1])
         content = tuple(self._emit_tokens(sublexer))
 
-        t.value = Literal(DataType.Block, content)
+        t.value = t.value, Literal(DataType.Block, content)
         return t
 
     ## Other
@@ -149,7 +148,8 @@ class Lexer:
     @classmethod
     def _emit_tokens(cls, lexer) -> Iterator[Token]:
         for t in lexer:
-            yield Token(t.value, t.lineno, t.lexpos)
+            text, value = t.value
+            yield Token(text, value, t.lineno, t.lexpos)
 
 
 ## Operators
@@ -158,7 +158,7 @@ for op in Operator:
 
     @lex.TOKEN(op.token)
     def handler(self, t):
-        t.value = Operator[t.type]
+        t.value = t.value, Operator[t.type]
         return t
 
     setattr(Lexer, name, handler)
@@ -170,7 +170,7 @@ def t_identifier(self, t):
     reserved = self.reserved.get(t.value)
     if reserved:
         t.type = reserved.name
-        t.value = reserved
+        t.value = t.value, reserved
     else:
         t.value = Identifier(t.value)
     return t

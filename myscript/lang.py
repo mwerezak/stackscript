@@ -6,23 +6,47 @@
 from __future__ import annotations
 
 from enum import Enum, auto
+from functools import total_ordering
 from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
-    pass
+    from typing import Any, Callable, Sequence, MutableSequence
+    from myscript.lexer import Token
 
 
+def _format_bool(b: bool) -> str:
+    return 'true' if b else 'false'
+
+def _format_array(array: MutableSequence['DataValue']) -> str:
+    return '['+ ' '.join(v.format_value() for v in array) + ']'
+
+def _format_block(block: Sequence[Token]) -> str:
+    return '{ '+ ' '.join(t.text for t in block) + ' }'
+
+
+class DataDef(NamedTuple):
+    format: Callable[[_VT], str]
+
+@total_ordering
 class DataType(Enum):
     """Data are things that can be pushed onto the stack."""
-    Bool        = auto()
-    Number      = auto()
-    String      = auto()
-    Array       = auto()
-    Block       = auto()
-    Error       = auto()
+    Bool        = DataDef(_format_bool)     # bool
+    Number      = DataDef(str)              # int or float
+    String      = DataDef(repr)             # str
+    Array       = DataDef(_format_array)    # MutableSequence[DataValue]
+    Block       = DataDef(_format_block)    # Sequence[Token]
+    Error       = DataDef(repr) # errors turn everything they touch into an error
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__qualname__}.{self.name}>'
+
+    def __lt__(self, other: DataType) -> bool:
+        return self.priority < other.priority
+
+    @property
+    def format(self) -> Callable[[Any], str]:
+        return self.value.format
+
 
 class DataValue(NamedTuple):
     type: DataType
@@ -32,8 +56,10 @@ class DataValue(NamedTuple):
         return f'<Value({self.type.name}: {self.value!r})>'
 
     def __str__(self) -> str:
-        return str(self.value)
+        return self.format_value()
 
+    def format_value(self) -> str:
+        return self.type.format(self.value)
 
 
 class OperatorDef(NamedTuple):
@@ -47,6 +73,8 @@ class Operator(Enum):
     Index   = OperatorDef(r'\$')   # copy the ith stack element to top
     Add     = OperatorDef(r'\+(?!\+)')   # add, concat
     Sub     = OperatorDef(r'-')    # subtract, set diff
+
+
     Mul     = OperatorDef(r'\*(?!\*)')   # mult, block execute times, array repeat, join, fold
     Div     = OperatorDef(r'/')    # div, split, split in groups of size, unfold, each
     Mod     = OperatorDef(r'%')    # mod, map, every ith element, clean split
@@ -80,11 +108,3 @@ class Operator(Enum):
         return self.value.token
 
 
-COERCION_PRIORITY = [
-    DataType.Bool   : 0,
-    DataType.Number : 1,
-    DataType.String : 2,
-    DataType.Array  : 3,
-    DataType.Block  : 4,
-    DataType.Error  : 5,  # errors turn everything they touch into an error
-]

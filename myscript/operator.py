@@ -5,68 +5,131 @@
 
 from __future__ import annotations
 
-from warnings import warn
-from typing import TYPE_CHECKING
+import itertools
+from collections import defaultdict
+from typing import TYPE_CHECKING, NamedTuple
 
 from myscript.lang import Operator, DataType, DataValue
-from myscript.errors import ScriptTypeError
+from myscript.errors import ScriptError
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, MutableMapping
+    from typing import Any, Callable, Iterator, Sequence, MutableMapping, MutableSequence
     from myscript.runtime import ContextFrame
 
-    OperatorFunc = Callable[[ContextFrame], None]
+    Signature = Sequence[DataType]
+    OperatorFunc = Callable[[ContextFrame, ...], Iterator[DataValue]]
 
 
 
+# map operator -> arity -> signature -> operator data
+OP_REGISTRY: MutableMapping[Operator, MutableSequence[MutableMapping[Signature, 'OperatorData']]] = defaultdict(list)
 
-_op_handlers: MutableMapping[Operator, OperatorFunc] = {}
+
+class OperatorData(NamedTuple):
+    op: Operator
+    signature: Sequence[DataType]
+    func: OperatorFunc
+
 
 def apply_operator(ctx: ContextFrame, op: Operator) -> None:
-    func = _op_handlers.get(op)
-    if func is not None:
-        func(ctx)
-    else:
-        warn(f"no handler for {op}")
+    opdata = _search_registery(op, ctx.peek_stack())
+    
+    args = [ ctx.pop_stack() for i in range(len(opdata.signature)) ]
+    args.reverse()
 
-def _operator_func(op: Operator):
+    for value in opdata.func(ctx, *args):
+        # print(value)
+        ctx.push_stack(value)
+
+def _search_registery(op: Operator, peek: Iterator[DataValue]) -> OperatorData:
+    registry = OP_REGISTRY[op]
+
+    args = []
+    for nargs, subregistry in enumerate(registry):
+        sig = tuple(value.type for value in args)
+        if sig in subregistry:
+            return subregistry[sig]
+
+        try:
+            args.append(next(peek))
+        except StopIteration:
+            break
+
+    args_msg = '\n'.join(f'[{i}]: {data}' for i, data in enumerate(args))
+    raise ScriptError(f"Invalid operands for operator '{op.name}':\n{args_msg}")
+
+def _register_operator(opdata: OperatorData) -> None:
+    registry = OP_REGISTRY[opdata.op]
+    nargs = len(opdata.signature)
+
+    while len(registry) <= nargs:
+        registry.append({})
+
+    signature = opdata.signature
+    if signature in registry[nargs]:
+        raise ValueError(f"signature {signature} is already registered for {opdata.op}")
+    registry[nargs][signature] = opdata
+
+def operator_func(op: Operator, *signature: DataType):
+    signature = tuple(reversed(signature))
+
     def decorator(func: OperatorFunc):
-        if op in _op_handlers:
-            warn(f"{op} already has a registered handler, overwriting...")
-        _op_handlers[op] = func
+        opdata = OperatorData(op, signature, func)
+        _register_operator(opdata)
         return func
     return decorator
 
+# register an operator for all possible permutations of args
+def operator_coerce(op: Operator, primary: DataType, *secondary: DataType):
+    base_sig = [primary, *secondary]
+    base_sig.reverse()
 
-@_operator_func(Operator.Add)
-def _operator_add(ctx: ContextFrame) -> None:
-    args = [
-        ctx.pop_stack(),
-        ctx.pop_stack(),
-    ]
-    ctx.push_stack(_add_values(*args))
+    def decorator(func: OperatorFunc):
+        for permute in itertools.permutations(range(len(base_sig))):
+            signature = tuple(base_sig[i] for i in permute)
+            func = _ReorderFunc(func, permute)
+            opdata = OperatorData(op, signature, func)
+            _register_operator(opdata)
+        return func
+    return decorator
 
-def _add_values(a: DataValue, b: DataValue) -> DataValue:
-    if a.type == b.type and a.type in (DataType.Number, DataType.Array, DataType.String):
-        return DataValue(a.type, a.value + b.value)
-    raise ScriptTypeError(f"invalid operands '{a}' and '{b}'")
+class _ReorderFunc(NamedTuple):
+    func: Callable
+    permute: Sequence[int]
+
+    def __call__(self, ctx: ContextFrame, *args: Any) -> Any:
+        return self.func(ctx, *( args[i] for i in self.permute ))
 
 
-@_operator_func(Operator.Sub)
-def _operator_sub(ctx: ContextFrame) -> None:
-    args = [
-        ctx.pop_stack(),
-        ctx.pop_stack(),
-    ]
-    ctx.push_stack(_sub_values(*args))
+## Operators
 
-def _sub_values(a: DataValue, b: DataValue) -> DataValue:
-    if a.type == b.type:
-        if a.type == DataType.Number:
-            return DataValue(DataType.Number, b.value - a.value)
-        if a.type == DataType.Array:
-            return DataValue(DataType.Array, [
-                item for item in b if item not in a
-            ])
-    raise ScriptTypeError(f"invalid operands '{a}' and '{b}'")
 
+## Add
+
+@operator_func(Operator.Add, DataType.Array, DataType.Array)
+def operator_add(ctx, a, b) -> Iterator[DataValue]:
+    yield DataValue(DataType.Array, b.value.extend(a.value))
+
+@operator_coerce(Operator.Add, DataType.Array, DataType.String)
+@operator_coerce(Operator.Add, DataType.Array, DataType.Number)
+@operator_coerce(Operator.Add, DataType.Array, DataType.Bool)
+def operator_add(ctx, arr, item) -> Iterator[DataValue]:
+    arr.value.append(item)
+    yield arr
+
+@operator_func(Operator.Add, DataType.String, DataType.String)
+def operator_add(ctx, a, b) -> Iterator[DataValue]:
+    yield DataValue(DataType.String, a.value + b.value)
+
+@operator_func(Operator.Add, DataType.Number, DataType.Number)
+def operator_add(ctx, a, b) -> Iterator[DataValue]:
+    yield DataValue(DataType.Number, a.value + b.value)
+
+
+## Sub
+
+@operator_func(Operator.Sub, DataType.Number, DataType.Number)
+def operator_sub(ctx, a, b):
+    yield DataValue(DataType.Number, a.value - b.value)
+
+# print(OP_REGISTRY)

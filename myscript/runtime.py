@@ -9,11 +9,11 @@ from collections import deque, ChainMap as chainmap
 from typing import TYPE_CHECKING, NamedTuple
 
 from myscript.lang import DataType, DataValue
-from myscript.errors import ScriptNameError
+from myscript.errors import ScriptError
 from myscript.operator import apply_operator
 
 if TYPE_CHECKING:
-    from typing import Any, Optional, Iterable, Sequence, MutableSequence, ChainMap
+    from typing import Any, Optional, Iterator, Iterable, Sequence, MutableSequence, ChainMap
     from myscript.lexer import Lexer, Token, Literal
 
 
@@ -35,8 +35,11 @@ class ContextFrame:
 
     def pop_stack(self) -> DataValue:
         if len(self.stack) == 0:
-            raise ScriptStackError('stack is empty (invalid number of arguments)')
+            raise ScriptStackError('stack is empty')
         return self.stack.pop()
+
+    def peek_stack(self) -> Iterator[DataValue]:
+        return reversed(self.stack)
 
     def exec(self, prog: Iterable[Token]) -> None:
         for token in prog:
@@ -61,7 +64,7 @@ class ContextFrame:
         if expr.is_identifier():
             name = expr.item.name
             if name not in self.namespace:
-                raise ScriptNameError(f"could not resolve name '{name}'", expr)
+                raise ScriptError(f"could not resolve name '{name}'", expr)
             return namespace[name]
         if expr.is_literal():
             if expr.item.type == DataType.Array:
@@ -88,8 +91,9 @@ class ScriptRuntime:
         self.lexer.input(text)
         self.root.exec(self.lexer.get_tokens())
         
-        for i, value in enumerate(self.root.stack):
-            print(f"[{i}]: {value!r}")
+        # print(self.root.stack)
+        for i, value in enumerate(reversed(self.root.stack)):
+            print(f"[{i}]: {value}")
 
 
 if __name__ == '__main__':
@@ -98,11 +102,30 @@ if __name__ == '__main__':
     tests = [
         """1 1+ """,
         """ [ 1 2 3 - 4 5 6 7 + ] """,
+        """ 'c' ['a' 'b'] + """,
+        """ { -1 5 * [ 'step' ] + } """,
     ]
 
     lexer = Lexer()
     for test in tests:
-        print(test)
+        print('>>>', test)
 
         runtime = ScriptRuntime(lexer)
         runtime.exec(test)
+
+
+"""
+{ #method 1
+    .
+    {. 1- factorial*} {;1} if
+}:factorial;
+
+{ #method 2
+    :x;
+    0:i;
+    1
+    {i x<} {i 1+:i *} while
+}:factorial;
+
+{1+,1>{*}*}:factorial; 5 factorial -> 120 #method 3
+"""
