@@ -1,0 +1,3 @@
+*.sublime-workspace
+venv/
+__pycache__/
