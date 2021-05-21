@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, NamedTuple
 from myscript.lang import DataType
 from myscript.values import ArrayValue
 from myscript.errors import ScriptError
-from myscript.opimpl import apply_operator
+from myscript.ops import apply_operator
 
 if TYPE_CHECKING:
     from typing import Any, Union, Optional, Iterator, Iterable, Sequence, MutableSequence, Mapping, ChainMap
