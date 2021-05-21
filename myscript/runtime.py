@@ -14,7 +14,7 @@ from myscript.errors import ScriptError
 from myscript.operator import apply_operator
 
 if TYPE_CHECKING:
-    from typing import Any, Optional, Iterator, Iterable, Sequence, MutableSequence, ChainMap
+    from typing import Any, Union, Optional, Iterator, Iterable, Sequence, MutableSequence, ChainMap
     from myscript.parser import Parser, Lexer, Token, Literal
     from myscript.values import DataValue
 
@@ -24,17 +24,22 @@ if TYPE_CHECKING:
 class ContextFrame:
     _stack: MutableSequence[DataValue]
     _namespace: ChainMap[str, DataValue]
-    def __init__(self, parent: Optional[ContextFrame] = None):
+    def __init__(self, runtime: ScriptRuntime, parent: Optional[ContextFrame]):
+        self.runtime = runtime
         self.parent = parent
         self._stack = deque()
-        self._namespace = (
-            parent._namespace.new_child() 
-            if parent is not None else chainmap()
-        )
+
+        if parent is None:
+            self._namespace = chainmap()
+        else:
+            self._namespace = parent._namespace.new_child()
 
     def create_child(self) -> ContextFrame:
         """Create a new child frame from this one."""
-        return ContextFrame(self)
+        return ContextFrame(self.runtime, self)
+
+    def get_namespace(self) -> Mapping[str, DataValue]:
+        return self._namespace
 
     def push_stack(self, value: DataValue) -> None:
         self._stack.append(value)
@@ -50,7 +55,14 @@ class ContextFrame:
     def iter_stack_reversed(self) -> Iterator[DataValue]:
         return reversed(self._stack)
 
-    def exec(self, prog: Iterable[Token]) -> None:
+    def exec(self, prog: Union[str, Iterable[Token]]) -> None:
+        if isinstance(prog, str):
+            parser = self.runtime.parser.clone()
+            parser.input(prog)
+            prog = parser.get_tokens()
+        self._exec(prog)
+
+    def _exec(self, prog: Iterable[Token]) -> None:
         for token in prog:
             try:
                 if token.is_operator():
@@ -91,7 +103,7 @@ class ContextFrame:
 class ScriptRuntime:
     def __init__(self, parser: Parser):
         self.parser = parser
-        self.root = ContextFrame()
+        self.root = ContextFrame(self, None)
 
     def exec(self, text: str) -> None:
         self.parser.input(text)
@@ -100,6 +112,8 @@ class ScriptRuntime:
         for i, value in enumerate(self.root.iter_stack_reversed()):
             print(f"[{i}]: {value}")
 
+    def get_globals() -> Mapping[str, DataValue]:
+        return self.root.get_namespace()
 
 
 if __name__ == '__main__':

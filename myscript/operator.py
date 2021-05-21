@@ -142,13 +142,18 @@ def operator_inspect(ctx, o):
 
 ###### Eval
 
+# evaluate a block in its own nested context
 @operator_func(Operator.Eval, DataType.Block)
 def operator_eval(ctx, o):
     sub_ctx = ctx.create_child()
     sub_ctx.exec(o.value)
     yield from sub_ctx.iter_stack()
 
-# TODO eval strings
+# evaluate a string directly in the current context
+@operator_func(Operator.Eval, DataType.String)
+def operator_eval(ctx, text):
+    ctx.exec(text.value)
+    return ()
 
 ###### Add
 
@@ -210,6 +215,7 @@ if __name__ == '__main__':
         """ [ 1 2 3 - 4 5 6 7 + ] """,
         """ 'c' ['a' 'b'] + """,
         """ { -1 5 * [ 'step' ] + }! """,
+        """ [ 1 '2 3 -'! 4 5 6 7 + ] """,
     ]
 
     for test in tests:

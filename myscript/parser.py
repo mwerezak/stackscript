@@ -162,14 +162,17 @@ class Lexer:
         raise ScriptError(f"Illegal character '{t.value[0]}'")
         t.lexer.skip(1)
 
-    def __init__(self, **kwargs):
-        self._lexer = lex.lex(object=self, **kwargs)
+    def __init__(self, lexer: Optional[Any] = None, **kwargs):
+        self._lexer = lexer or lex.lex(object=self, **kwargs)
 
     def input(self, text: str) -> None:
         self._lexer.input(text)
 
     def get_tokens(self) -> Iterable[Token]:
         return self._emit_tokens(self._lexer)
+
+    def clone(self) -> Lexer:
+        return Lexer(self._lexer.clone())
 
     @classmethod
     def _emit_tokens(cls, lexer) -> Iterator[Token]:
@@ -218,7 +221,9 @@ class Parser:
 
     def __init__(self, lexer: Optional[Lexer] = None):
         self.lexer = lexer or Lexer()
-        self.tokgen = self.lexer.get_tokens()
+
+    def clone(self) -> Parser:
+        return Parser(self.lexer.clone())
 
     def input(self, text: str) -> None:
         self.lexer.input(text)
@@ -231,9 +236,10 @@ class Parser:
             return None
 
     def get_tokens(self) -> Iterator[Token]:
-        while (token := self._get_next(self.tokgen)) is not None:
+        tokens = self.lexer.get_tokens()
+        while (token := self._get_next(tokens)) is not None:
             if token.is_special():
-                literal = self._parse_recursive(self.tokgen, token.item)
+                literal = self._parse_recursive(tokens, token.item)
                 token = Token(item=literal, text=token.text, lineno=token.lineno, lexpos=token.lexpos)
             yield token
 
