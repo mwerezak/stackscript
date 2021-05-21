@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import itertools
+from functools import wraps
 from collections import defaultdict
 from typing import TYPE_CHECKING, NamedTuple
 
@@ -35,7 +36,7 @@ class OperatorData(NamedTuple):
 
 def apply_operator(ctx: ContextFrame, op: Operator) -> None:
     opdata = _search_registery(op, ctx.iter_stack_reversed())
-    
+
     args = [ ctx.pop_stack() for i in range(len(opdata.signature)) ]
     args.reverse()
 
@@ -53,12 +54,18 @@ def _search_registery(op: Operator, peek: Iterator[DataValue]) -> OperatorData:
             return subregistry[sig]
 
         try:
-            args.append(next(peek))
+            args.insert(0, next(peek))
         except StopIteration:
             break
 
-    args_msg = '\n'.join(f'[{i}]: {data}' for i, data in enumerate(args)) if len(args) else '[]'
-    raise ScriptError(f"Invalid operands for operator '{op.name}':\n{args_msg}")
+    message = "Invalid operands for operator '{op.name}':\n"
+    if len(args):
+        args_msg = ' '.join(data.format() for data in reversed(args))
+        types_msg = ', '.join(data.type.name for data in reversed(args))
+        message += f"{{{types_msg}}}: {args_msg}"
+    else:
+        message += "[]"
+    raise ScriptError(message)
 
 def _register_operator(opdata: OperatorData) -> None:
     registry = OP_REGISTRY[opdata.op]
@@ -73,24 +80,28 @@ def _register_operator(opdata: OperatorData) -> None:
     registry[nargs][signature] = opdata
 
 def operator_func(op: Operator, *signature: DataType):
-    signature = tuple(reversed(signature))
-
     def decorator(func: OperatorFunc):
+        # print(func.__name__, signature)
         opdata = OperatorData(op, signature, func)
         _register_operator(opdata)
         return func
     return decorator
 
 # register an operator for all possible permutations of args
-def operator_coerce(op: Operator, primary: DataType, *secondary: DataType):
+def operator_permute(op: Operator, primary: DataType, *secondary: DataType):
     base_sig = [primary, *secondary]
-    base_sig.reverse()
 
     def decorator(func: OperatorFunc):
+        # print(func.__name__, base_sig)
         for permute in itertools.permutations(range(len(base_sig))):
             signature = tuple(base_sig[i] for i in permute)
-            func = _ReorderFunc(func, permute)
-            opdata = OperatorData(op, signature, func)
+            
+            reorder = _ReorderFunc(func, permute)
+            @wraps(func)
+            def wrapper(*args):
+                return reorder(*args)
+
+            opdata = OperatorData(op, signature, wrapper)
             _register_operator(opdata)
         return func
     return decorator
@@ -100,6 +111,7 @@ class _ReorderFunc(NamedTuple):
     permute: Sequence[int]
 
     def __call__(self, ctx: ContextFrame, *args: Any) -> Any:
+        # print(self.permute, args)
         return self.func(ctx, *( args[i] for i in self.permute ))
 
 
@@ -130,9 +142,13 @@ def operator_inspect(ctx, o):
 
 ###### Eval
 
+@operator_func(Operator.Eval, DataType.Block)
 def operator_eval(ctx, o):
-    pass
+    sub_ctx = ctx.create_child()
+    sub_ctx.exec(o.value)
+    yield from sub_ctx.iter_stack()
 
+# TODO eval strings
 
 ###### Add
 
@@ -142,11 +158,19 @@ def operator_add(ctx, a, b):
     yield ArrayValue([*a.value, *b.value])
 
 # append item to end of array
-@operator_coerce(Operator.Add, DataType.Array, DataType.String)
-@operator_coerce(Operator.Add, DataType.Array, DataType.Number)
-@operator_coerce(Operator.Add, DataType.Array, DataType.Bool)
+@operator_func(Operator.Add, DataType.Array, DataType.String)
+@operator_func(Operator.Add, DataType.Array, DataType.Number)
+@operator_func(Operator.Add, DataType.Array, DataType.Bool)
 def operator_add(ctx, arr, item):
     arr.value.append(item)
+    yield arr
+
+# insert item at beginning of array
+@operator_func(Operator.Add, DataType.String, DataType.Array)
+@operator_func(Operator.Add, DataType.Number, DataType.Array)
+@operator_func(Operator.Add, DataType.Bool,   DataType.Array)
+def operator_add(ctx, item, arr):
+    arr.value.insert(0, item)
     yield arr
 
 # concatenate strings
@@ -166,13 +190,20 @@ def operator_add(ctx, a, b):
 def operator_sub(ctx, a, b):
     yield NumberValue(a.value - b.value)
 
-# print(OP_REGISTRY)
+###### Mul
+
+@operator_func(Operator.Mul, DataType.Number, DataType.Number)
+def operator_mul(ctx, a, b):
+    yield NumberValue(a.value * b.value)
+
 
 
 if __name__ == '__main__':
     from myscript.parser import Parser
     from myscript.runtime import ScriptRuntime
 
+    # print(OP_REGISTRY)
+    
     tests = [
         """ [ 3 2]  [ 1 'b' { 'c' 'd' } ] ~ """,
         """ [ 1 'b' [ 3 2]`  { 'c' 'd' } ]`  """,
