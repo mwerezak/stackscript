@@ -54,6 +54,7 @@ class Operator(Enum):
     Index   = OperatorDef(r'\$')   # copy the ith stack element to top
     Dup     = OperatorDef(r'\.')   # copy the top element. equivalent to 0$
     Drop    = OperatorDef(r',')    # remove the top element from the stack
+    Break   = OperatorDef(r';')    # empty the stack
 
     Assign  = OperatorDef(r':')
 
@@ -68,13 +69,15 @@ class Operator(Enum):
     BitOr   = OperatorDef(r'\|')   # bitwise/setwise or
     BitAnd  = OperatorDef(r'&')    # bitwise/setwise and
     BitXor  = OperatorDef(r'\^')   # bitwise/setwise xor
-    LShift  = OperatorDef(r'<<')
-    RShift  = OperatorDef(r'>>')
+    # LShift  = OperatorDef(r'<<')
+    # RShift  = OperatorDef(r'>>')
 
     Size    = OperatorDef(r'\#')
 
-    Less    = OperatorDef(r'<(?!<)') # less than, elements less than index
-    Greater = OperatorDef(r'>(?!>)') # greater than, elements greater than or equal to index
+    LT      = OperatorDef(r'<(?!<)') # less than, elements less than index
+    LE      = OperatorDef(r'<=')     # less than or equal to
+    GT      = OperatorDef(r'>(?!>)') # greater than, elements greater than or equal to index
+    GE      = OperatorDef(r'>=')     # greater than or equal to
     Equal   = OperatorDef(r'=')      # equal to, element at index
     # Dec     = OperatorDef(r'--')   # deincrement, left uncons
     # Inc     = OperatorDef(r'\+\+') # increment, right uncons

@@ -188,13 +188,20 @@ def operator_dup(ctx):
 def operator_drop(ctx, item):
     return ()  # no-op, just drop the item
 
+###### Break
+
+@operator_func(Operator.Break)
+def operator_break(ctx):
+    ctx.clear_stack()
+    return ()
+
 
 ###### Add
 
 # concatenate arrays
 @operator_func(Operator.Add, DataType.Array, DataType.Array)
 def operator_add(ctx, a, b):
-    yield ArrayValue([*a.value, *b.value])
+    yield ArrayValue([*a, *b])
 
 # append item to end of array
 @operator_func(Operator.Add, DataType.Array, DataType.String)
@@ -228,10 +235,10 @@ def operator_add(ctx, a, b):
 # setwise difference
 @operator_func(Operator.Sub, DataType.Array, DataType.Array)
 def operator_sub(ctx, a, b):
-    # b = set(b)
-    # return ArrayValue([
-    #     item for 
-    # ])
+    subtract = set(b.unpack())
+    yield ArrayValue([
+        data for data in a if data.value not in subtract
+    ])
 
 @operator_func(Operator.Sub, DataType.Number, DataType.Number)
 def operator_sub(ctx, a, b):
@@ -299,6 +306,13 @@ def operator_mod(ctx, a, b):
     yield NumberValue(a.value % b.value)
 
 
+###### Pow
+
+@operator_func(Operator.Pow, DataType.Number, DataType.Number)
+def operator_pow(ctx, a, b):
+    yield NumberValue(a.value ** b.value)
+
+
 ###### Size
 
 @operator_func(Operator.Size, DataType.Array)
@@ -307,16 +321,77 @@ def operator_size(ctx, item):
     yield NumberValue(len(item))
 
 
-###### Bitwise Or
+###### Bitwise Or/And/Xor
 
+# setwise or (union)
 @operator_func(Operator.BitOr, DataType.Array, DataType.Array)
 def operator_bitor(ctx, a, b):
+    union = set(a.unpack())
+    union.update(b.unpack())
+    yield ArrayValue(list(union))
+
+# bitwise or
+@operator_func(Operator.BitOr, DataType.Number, DataType.Number)
+def operator_bitor(ctx, a, b):
+    yield NumberValue(a.value | b.value)
+
+# setwise and (intersection)
+@operator_func(Operator.BitAnd, DataType.Array, DataType.Array)
+def operator_bitand(ctx, a, b):
+    union = set(a.unpack())
+    union.intersection_update(b.unpack())
+    yield ArrayValue(list(union))
+
+# bitwise and
+@operator_func(Operator.BitAnd, DataType.Number, DataType.Number)
+def operator_bitand(ctx, a, b):
+    yield NumberValue(a.value & b.value)
+
+# setwise xor (symmetric difference)
+@operator_func(Operator.BitXor, DataType.Array, DataType.Array)
+def operator_bitxor(ctx, a, b):
+    union = set(a.unpack())
+    union.symmetric_difference_update(b.unpack())
+    yield ArrayValue(list(union))
+
+# bitwise and
+@operator_func(Operator.BitXor, DataType.Number, DataType.Number)
+def operator_bitxor(ctx, a, b):
+    yield NumberValue(a.value ^ b.value)
 
 
-    BitOr   = OperatorDef(r'\|')   # bitwise/setwise or
-    BitAnd  = OperatorDef(r'&')    # bitwise/setwise and
-    BitXor  = OperatorDef(r'\^')   # bitwise/setwise xor
+###### Logical Comparison
 
+@operator_func(Operator.LT, DataType.Number, DataType.Number)
+def operator_lt(ctx, a, b):
+    yield BoolValue(a < b)
+
+@operator_func(Operator.LE, DataType.Number, DataType.Number)
+def operator_le(ctx, a, b):
+    yield BoolValue(a <= b)
+
+@operator_func(Operator.GT, DataType.Number, DataType.Number)
+def operator_gt(ctx, a, b):
+    yield BoolValue(a > b)
+
+@operator_func(Operator.GE, DataType.Number, DataType.Number)
+def operator_ge(ctx, a, b):
+    yield BoolValue(a >= b)
+
+@operator_func(Operator.Equal,    DataType.String, DataType.String)
+@operator_permute(Operator.Equal, DataType.String, DataType.Number)
+@operator_permute(Operator.Equal, DataType.String, DataType.Bool)
+@operator_permute(Operator.Equal, DataType.Number, DataType.Bool)
+@operator_func(Operator.Equal,    DataType.Bool,   DataType.Bool)
+def operator_equal(ctx, a, b):
+    yield BoolValue(a == b)
+
+@operator_func(Operator.Equal, DataType.Number, DataType.Number)
+def operator_equal(ctx, a, b):
+    if isinstance(a.value, int) and isinstance(b.value, int):
+        yield BoolValue(a.value == b.value)
+    else:
+        yield BoolValue( abs(a.value - b.value) < 10**-9 )
 
 if __name__ == '__main__':
     from myscript.parser import Parser
@@ -324,7 +399,7 @@ if __name__ == '__main__':
 
     from pprint import pprint
     pprint(OP_REGISTRY)
-    
+
     tests = [
         """ [ 3 2]  [ 1 'b' { 'c' 'd' } ] ~ """,
         """ [ 1 'b' [ 3 2]`  { 'c' 'd' } ]`  """,
@@ -338,6 +413,8 @@ if __name__ == '__main__':
         """ 1 2 3 4 5 6 ,,, [] { 1@ + } 3* . # """,
         """ [ 1 2 3 ] {2*}/ ~ """,
         """ [] [ 1 2 3 ] {2* 1@ +}% """,
+        """ [1 2 3 4 5 6] [2 4 5] -""",
+        """ [7 6; 5 4 3 2 1] {3 <=}/ 0 false = """,
     ]
 
     for test in tests:

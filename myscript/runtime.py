@@ -66,6 +66,9 @@ class ContextFrame:
     def remove_stack(self, idx: int) -> None:
         del self._stack[idx]
 
+    def clear_stack(self) -> None:
+        self._stack.clear()
+
     def exec(self, prog: Union[str, Iterable[Token]]) -> None:
         if isinstance(prog, str):
             parser = self.runtime.parser.clone()
