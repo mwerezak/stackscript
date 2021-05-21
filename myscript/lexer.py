@@ -22,9 +22,12 @@ class LexerError(Exception): pass
 
 
 class Token(NamedTuple):
-    data: Union[Operator, Literal, Identifier, SpecialToken]
+    data: Union[Operator, Literal, Identifier]
     lineno: int
     lexpos: int
+
+    def __repr__(self) -> str:
+        return f'{self.__class__.__qualname__}({self.data!r})'
 
     def is_operator(self) -> bool:
         return isinstance(self.data, Operator)
@@ -35,9 +38,6 @@ class Token(NamedTuple):
     def is_identifier(self) -> bool:
         return isinstance(self.data, Identifier)
 
-    def is_special(self, special: SpecialToken) -> bool:
-        return self.data == special
-
 
 class Literal(NamedTuple):
     type: DataType
@@ -46,14 +46,6 @@ class Literal(NamedTuple):
 class Identifier(NamedTuple):
     name: str
 
-class SpecialToken(Enum):
-    StartBlock = auto()
-    EndBlock   = auto()
-    StartArray = auto()
-    EndArray   = auto()
-
-    def __repr__(self) -> str:
-        return f'<{self.__class__.__qualname__}.{self.name}>'
 
 ## PLY Rules
 class Lexer:
@@ -80,7 +72,9 @@ class Lexer:
         'bool',
         'integer',
         'float',
+        'array',
         'string',
+        'block',
 
         ## Identifiers
         'identifier',
@@ -88,28 +82,6 @@ class Lexer:
 
     t_ignore = string.whitespace
     t_ignore_comment = r'//.*'
-
-    ## Special Syntax
-    
-    def t_start_block(self, t):
-        r'{'
-        t.value = SpecialToken.StartBlock
-        return t
-
-    def t_end_block(self, t):
-        r'}'
-        t.value = SpecialToken.EndBlock
-        return t
-
-    def t_start_arr(self, t):
-        r'\['
-        t.value = SpecialToken.StartArray
-        return t
-
-    def t_end_arr(self, t):
-        r'\]'
-        t.value = SpecialToken.EndArray
-        return t
 
     ## Literals
 
@@ -128,9 +100,29 @@ class Lexer:
         t.value = Literal(DataType.Float, float(t.value))
         return t
 
+    def t_array(self, t):
+        r'\[.*?\]'
+
+        sublexer = self._lexer.clone()
+        sublexer.input(t.value[1:-1])
+        content = tuple(self._emit_tokens(sublexer))
+
+        t.value = Literal(DataType.Array, content)
+        return t
+
     def t_string(self, t):
         r'\'.*?\'|".*?"'
         t.value = Literal(DataType.String, t.value[1:-1])
+        return t
+
+    def t_block(self, t):
+        r'\{.*?\}'
+
+        sublexer = self._lexer.clone()
+        sublexer.input(t.value[1:-1])
+        content = tuple(self._emit_tokens(sublexer))
+        
+        t.value = Literal(DataType.Block, content)
         return t
 
     ## Other
@@ -151,8 +143,11 @@ class Lexer:
         self._lexer.input(text)
 
     def get_tokens(self) -> Iterator[Token]:
-        # yield from self._lexer
-        for t in self._lexer:
+        return self._emit_tokens(self._lexer)
+
+    @classmethod
+    def _emit_tokens(cls, lexer) -> Iterator[Token]:
+        for t in lexer:
             yield Token(t.value, t.lineno, t.lexpos)
 
 
