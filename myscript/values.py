@@ -73,6 +73,13 @@ class BoolValue(DataValue[bool]):
     def __bool__(self) -> bool:
         return self.value
 
+    def __eq__(self, other: DataValue) -> bool:
+        return self.value == bool(other)
+
+    def __hash__(self) -> int:
+        return hash(self.value)
+
+@total_ordering
 @_data(DataType.Number)
 class NumberValue(DataValue[Union[int, float]]):
     def __repr__(self) -> str:
@@ -83,6 +90,19 @@ class NumberValue(DataValue[Union[int, float]]):
 
     def format(self) -> str:
         return str(self.value)
+
+    def __bool__(self) -> bool:
+        return bool(self.value)
+
+    def __eq__(self, other: DataValue) -> bool:
+        return self.value == other.value
+
+    def __lt__(self, other: DataValue) -> bool:
+        return self.value < other.value
+
+    def __hash__(self) -> int:
+        return hash(self.value)
+
 
 @_data(DataType.String)
 class StringValue(DataValue[str]):
@@ -102,6 +122,13 @@ class StringValue(DataValue[str]):
         for ch in self.value:
             yield StringValue(ch)
 
+    def __eq__(self, other: DataValue) -> bool:
+        return self.value == other.value
+
+    def __hash__(self) -> int:
+        return hash(self.value)
+
+
 @_data(DataType.Array)
 class ArrayValue(DataValue[MutableSequence[DataValue]]):
     def __repr__(self) -> str:
@@ -119,7 +146,6 @@ class ArrayValue(DataValue[MutableSequence[DataValue]]):
 
     def __iter__(self) -> Iterator[DataValue]:
         return iter(self.value)
-
 
 @_data(DataType.Block)
 class BlockValue(DataValue[Sequence['Token']]):

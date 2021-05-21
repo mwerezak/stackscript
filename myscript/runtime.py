@@ -110,6 +110,17 @@ class ContextFrame:
         array_ctx.exec(token.item.value)
         return ArrayValue(list(array_ctx.iter_stack_result()))
 
+    def __str__(self) -> str:
+        return ' '.join(
+            str(value) for value in self.iter_stack_result()
+        )
+
+    def format_stack(self) -> str:
+        return '\n'.join(
+            f"[{i}]: <{value.type.name}> {value!s}"
+            for i, value in enumerate(self.iter_stack())
+        )
+
 
 class ScriptRuntime:
     def __init__(self, parser: Parser):
@@ -120,8 +131,7 @@ class ScriptRuntime:
         self.parser.input(text)
         self.root.exec(self.parser.get_tokens())
         
-        for i, value in enumerate(self.root.iter_stack()):
-            print(f"[{i}]: <{value.type.name}> {value!s}")
+        print(self.root.format_stack())
 
     def get_globals(self) -> Mapping[str, DataValue]:
         return self.root.get_namespace()

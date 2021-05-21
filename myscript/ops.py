@@ -172,6 +172,12 @@ def operator_index(ctx, index):
     yield ctx.peek_stack(index.value)
 
 
+###### Dup
+
+@operator_func(Operator.Dup)
+def operator_dup(ctx):
+    yield ctx.peek_stack(0)
+
 ###### Drop
 
 @operator_func(Operator.Drop, DataType.Bool)
@@ -219,6 +225,14 @@ def operator_add(ctx, a, b):
 
 ###### Sub
 
+# setwise difference
+@operator_func(Operator.Sub, DataType.Array, DataType.Array)
+def operator_sub(ctx, a, b):
+    # b = set(b)
+    # return ArrayValue([
+    #     item for 
+    # ])
+
 @operator_func(Operator.Sub, DataType.Number, DataType.Number)
 def operator_sub(ctx, a, b):
     yield NumberValue(a.value - b.value)
@@ -253,7 +267,7 @@ def operator_mul(ctx, a, b):
 
 ###### Div
 
-# execute a block over all elements.
+# map. execute a block over all elements.
 @operator_permute(Operator.Div, DataType.Block, DataType.Array)
 def operator_div(ctx, block, array):
     result = []
@@ -270,8 +284,38 @@ def operator_div(ctx, a, b):
     yield NumberValue(a.value / b.value)
 
 
-    # Div     = OperatorDef(r'/')    # div, split, split in groups of size, unfold, each
-    # Mod     = OperatorDef(r'%')    # mod, map, every ith element, clean split
+###### Mod
+
+# execute a block over all elements directly in the current context
+@operator_permute(Operator.Mod, DataType.Block, DataType.Array)
+def operator_mod(ctx, block, array):
+    for item in array:
+        ctx.push_stack(item)
+        ctx.exec(block)
+    return ()
+
+@operator_func(Operator.Mod, DataType.Number, DataType.Number)
+def operator_mod(ctx, a, b):
+    yield NumberValue(a.value % b.value)
+
+
+###### Size
+
+@operator_func(Operator.Size, DataType.Array)
+@operator_func(Operator.Size, DataType.String)
+def operator_size(ctx, item):
+    yield NumberValue(len(item))
+
+
+###### Bitwise Or
+
+@operator_func(Operator.BitOr, DataType.Array, DataType.Array)
+def operator_bitor(ctx, a, b):
+
+
+    BitOr   = OperatorDef(r'\|')   # bitwise/setwise or
+    BitAnd  = OperatorDef(r'&')    # bitwise/setwise and
+    BitXor  = OperatorDef(r'\^')   # bitwise/setwise xor
 
 
 if __name__ == '__main__':
@@ -291,8 +335,9 @@ if __name__ == '__main__':
         """ 1 2 3 4 5 6 2$ """,
         """ 1 2 3 4 5 6 2@ """,
         """ 'str' 3 * 2 ['a' 'b' 'c'] *""",
-        """ 1 2 3 4 5 6 ... [] { 1@ + } 3* """,
-        """ [ 1 2 3 ] {2*}/ """,
+        """ 1 2 3 4 5 6 ,,, [] { 1@ + } 3* . # """,
+        """ [ 1 2 3 ] {2*}/ ~ """,
+        """ [] [ 1 2 3 ] {2* 1@ +}% """,
     ]
 
     for test in tests:
