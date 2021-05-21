@@ -15,28 +15,28 @@ from ply import lex
 from myscript.lang import Operator, DataType
 
 if TYPE_CHECKING:
-    from typing import Union, Optional, Iterator, Tuple
+    from typing import Any, Union, Iterator, Iterable
 
 
 class LexerError(Exception): pass
 
 
 class Token(NamedTuple):
-    data: Union[Operator, Literal, Identifier]
+    item: Union[Operator, Literal, Identifier]
     lineno: int
     lexpos: int
 
     def __repr__(self) -> str:
-        return f'{self.__class__.__qualname__}({self.data!r})'
+        return f'{self.__class__.__qualname__}({self.item!r})'
 
     def is_operator(self) -> bool:
-        return isinstance(self.data, Operator)
+        return isinstance(self.item, Operator)
 
     def is_literal(self) -> bool:
-        return isinstance(self.data, Literal)
+        return isinstance(self.item, Literal)
 
     def is_identifier(self) -> bool:
-        return isinstance(self.data, Identifier)
+        return isinstance(self.item, Identifier)
 
 
 class Literal(NamedTuple):
@@ -121,7 +121,7 @@ class Lexer:
         sublexer = self._lexer.clone()
         sublexer.input(t.value[1:-1])
         content = tuple(self._emit_tokens(sublexer))
-        
+
         t.value = Literal(DataType.Block, content)
         return t
 
@@ -142,7 +142,7 @@ class Lexer:
     def input(self, text: str) -> None:
         self._lexer.input(text)
 
-    def get_tokens(self) -> Iterator[Token]:
+    def get_tokens(self) -> Iterable[Token]:
         return self._emit_tokens(self._lexer)
 
     @classmethod

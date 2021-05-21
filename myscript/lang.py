@@ -9,7 +9,7 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
-    from typing import Callable
+    pass
 
 class DataType(Enum):
     """Data are things that can be pushed onto the stack."""
