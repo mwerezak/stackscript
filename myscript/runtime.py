@@ -9,24 +9,12 @@ from collections import deque, ChainMap as chainmap
 from typing import TYPE_CHECKING, NamedTuple
 
 from myscript.lang import DataType
+from myscript.errors import ScriptNameError
+from myscript.operator import apply_operator
 
 if TYPE_CHECKING:
     from typing import Any, Optional, Iterable, Sequence, MutableSequence, ChainMap
     from myscript.lexer import Lexer, Token, Literal
-
-
-class ScriptError(Exception):
-    def __init__(self, message: str, lineno: int, lexpos: int):
-        self.lineno = lineno
-        self.lexpos = lexpos
-        super().__init__(message)
-
-    def __str__(self) -> str:
-        return '\n'.join([
-            super().__str__(),
-            f"lineno: {self.lineno}", 
-            f"pos: {self.lexpos}",
-        ])
 
 
 class DataValue(NamedTuple):
@@ -37,7 +25,7 @@ class DataValue(NamedTuple):
         return f'<Value({self.type.name}: {self.value!r})>'
 
     def __str__(self) -> str:
-        return f'[{self.type.name}] {self.value!r}'
+        return str(self.value)
 
 
 class ContextFrame:
@@ -55,15 +43,15 @@ class ContextFrame:
         self.stack.append(value)
 
     def pop_stack(self) -> DataValue:
-        self.stack.pop()
+        return self.stack.pop()
 
     def exec(self, prog: Iterable[Token]) -> None:
         for token in prog:
             if token.is_operator():
-                print(token)  # TODO
-                continue
-            value = self._eval(token)
-            self.push_stack(value)
+                apply_operator(self, token.item)
+            else:
+                value = self._eval(token)
+                self.push_stack(value)
 
     def eval(self, expr: Token) -> DataValue:
         if expr.is_operator():
@@ -74,7 +62,7 @@ class ContextFrame:
         if expr.is_identifier():
             name = expr.item.name
             if name not in self.namespace:
-                raise ScriptError(f"could not resolve name '{name}'", expr.lineno, expr.lexpos)
+                raise ScriptNameError(f"could not resolve name '{name}'", expr.lineno, expr.lexpos)
             return namespace[name]
         if expr.is_literal():
             if expr.item.type == DataType.Array:
