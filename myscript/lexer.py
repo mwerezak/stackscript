@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, NamedTuple
 
 from ply import lex
 
-from lang import Operator, DataType
+from myscript.lang import Operator, DataType
 
 if TYPE_CHECKING:
     from typing import Union, Optional, Iterator, Tuple
@@ -141,11 +141,11 @@ class Lexer:
 
     # Error handling rule
     def t_error(self, t):
-        # raise LexerError(f"Illegal character '{t.value[0]}'")
-        t.lexer.skip(1)
+        raise LexerError(f"Illegal character '{t.value[0]}'")
+        # t.lexer.skip(1)
 
     def __init__(self, **kwargs):
-        self._lexer = lex.lex(module=self, **kwargs)
+        self._lexer = lex.lex(object=self, **kwargs)
 
     def input(self, text: str) -> None:
         self._lexer.input(text)
