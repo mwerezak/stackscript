@@ -159,3 +159,24 @@ def operator_sub(ctx, a, b):
     yield NumberValue(a.value - b.value)
 
 # print(OP_REGISTRY)
+
+
+if __name__ == '__main__':
+    from myscript.parser import Lexer
+    from myscript.runtime import ScriptRuntime
+
+    tests = [
+        """ [ 3 2]  [ 1 'b' { 'c' 'd' } ] ~ """,
+        """ [ 3 2]  [ 1 'b' { 'c' 'd' } ] ` """,
+        # """ [ 1 'b' [ 3 2]  { 'c' 'd' } ]  """,
+        """ [ 1 2 3 - 4 5 6 7 + ] """,
+        """ 'c' ['a' 'b'] + """,
+        """ { -1 5 * [ 'step' ] + }! """,
+    ]
+
+    lexer = Lexer()
+    for test in tests:
+        print('>>>', test)
+
+        runtime = ScriptRuntime(lexer)
+        runtime.exec(test)

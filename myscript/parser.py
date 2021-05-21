@@ -14,12 +14,11 @@ from ply import lex
 
 from myscript.lang import DataType, Operator
 from myscript.values import DataValue
+from myscript.errors import ScriptError
 
 if TYPE_CHECKING:
     from typing import Any, Union, Iterator, Iterable
 
-
-class LexerError(Exception): pass
 
 
 class Token(NamedTuple):
@@ -138,8 +137,8 @@ class Lexer:
 
     # Error handling rule
     def t_error(self, t):
-        raise LexerError(f"Illegal character '{t.value[0]}'")
-        # t.lexer.skip(1)
+        raise ScriptError(f"Illegal character '{t.value[0]}'")
+        t.lexer.skip(1)
 
     def __init__(self, **kwargs):
         self._lexer = lex.lex(object=self, **kwargs)
