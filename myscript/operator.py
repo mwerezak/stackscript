@@ -34,7 +34,7 @@ class OperatorData(NamedTuple):
 
 
 def apply_operator(ctx: ContextFrame, op: Operator) -> None:
-    opdata = _search_registery(op, ctx.peek_stack())
+    opdata = _search_registery(op, ctx.iter_stack_reversed())
     
     args = [ ctx.pop_stack() for i in range(len(opdata.signature)) ]
     args.reverse()
