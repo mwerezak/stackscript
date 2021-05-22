@@ -58,9 +58,9 @@ class Operator(Enum):
 
     Size    = OperatorInfo(r'\#')
 
-    LT      = OperatorInfo(r'<(?!<)') # less than, elements less than index
+    LT      = OperatorInfo(r'<(?![<=])') # less than, elements less than index
     LE      = OperatorInfo(r'<=')     # less than or equal to
-    GT      = OperatorInfo(r'>(?!>)') # greater than, elements greater than or equal to index
+    GT      = OperatorInfo(r'>(?![>=])') # greater than, elements greater than or equal to index
     GE      = OperatorInfo(r'>=')     # greater than or equal to
     Equal   = OperatorInfo(r'=')      # equal to, element at index
     ArrAdd  = OperatorInfo(r'\+\+')   # array add/concat

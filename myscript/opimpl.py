@@ -6,17 +6,20 @@
 from __future__ import annotations
 
 import itertools
-from functools import wraps
 from collections import defaultdict
 from typing import TYPE_CHECKING, NamedTuple
 
 from myscript.opcodes import Operator, Operand
-from myscript.values import DataValue, BoolValue, NumberValue, StringValue, ArrayValue, BlockValue
 from myscript.exceptions import ScriptError
+
+from myscript.values import (
+    DataValue, BoolValue, IntValue, FloatValue, NumberValue, StringValue, ArrayValue, BlockValue
+)
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Iterator, Sequence, MutableMapping, MutableSequence
     from myscript.runtime import ContextFrame
+    from myscript.values import DataValue
 
     Signature = Sequence[Operand]
     OperatorFunc = Callable[[ContextFrame, ...], Iterator[DataValue]]
@@ -26,6 +29,8 @@ if TYPE_CHECKING:
 # map operator -> arity -> signature -> operator data
 OP_REGISTRY: MutableMapping[Operator, MutableSequence[MutableMapping[Signature, OperatorData]]] = defaultdict(list)
 
+class OperandError(Exception):
+    pass
 
 class OperatorData(NamedTuple):
     op: Operator
@@ -55,18 +60,18 @@ def _search_registery(op: Operator, peek: Iterator[DataValue]) -> OperatorData:
         except StopIteration:
             break
 
-        sig = tuple(value.type for value in args)
+        sig = tuple(value.optype for value in args)
         if sig in subregistry:
             return subregistry[sig]
 
     message = "Invalid operands for operator '{op.name}':\n"
     if len(args):
         args_msg = ' '.join(data.format() for data in args)
-        types_msg = ', '.join(data.type.name for data in args)
+        types_msg = ', '.join(data.optype.name for data in args)
         message += f"{{{types_msg}}}: {args_msg}"
     else:
         message += "[]"
-    raise ScriptError(message)
+    raise OperandError(message)
 
 def _register_operator(opdata: OperatorData) -> None:
     registry = OP_REGISTRY[opdata.op]
@@ -150,7 +155,7 @@ def operator_eval(ctx, block):
 # evaluate a string directly in the current context
 @operator_func(Operator.Eval, Operand.String)
 def operator_eval(ctx, text):
-    ctx.exec(text.value)
+    ctx.execs(text.value)
     return ()
 
 @operator_func(Operator.Eval, Operand.Number)
@@ -425,7 +430,6 @@ def operator_equal(ctx, a, b):
 
 
 if __name__ == '__main__':
-    from myscript.parser import Parser
     from myscript.runtime import ScriptRuntime
 
     # from pprint import pprint
@@ -455,7 +459,5 @@ if __name__ == '__main__':
 
     for test in tests:
         print('>>>', test)
-
-        parser = Parser()
-        runtime = ScriptRuntime(parser)
-        runtime.exec(test)
+        rt = ScriptRuntime()
+        rt.run_script(test)

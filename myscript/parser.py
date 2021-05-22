@@ -222,14 +222,14 @@ class Literal(NamedTuple):
     meta: SymbolMeta
 
     def get_type(self) -> SymbolType:
-        return SymbolType.Identifier
+        return SymbolType.Literal
 
 class OperatorSym(NamedTuple):
     operator: Operator
     meta: SymbolMeta
 
     def get_type(self) -> SymbolType:
-        return SymbolType.Identifier
+        return SymbolType.Operator
 
 class SymbolType(Enum):
     Identifier  = Identifier
@@ -317,6 +317,7 @@ class Parser:
             raise ScriptError('malformed string', SymbolMeta(**meta))
         return Literal(LiteralType.String, text[1:-1], SymbolMeta(**meta))
 
+    # for structured literals, the value is the symbol contents of the literal as an immutable sequence
     _structured_literals = {
         Delimiter.StartArray : LiteralType.Array,
         Delimiter.StartBlock : LiteralType.Block,

@@ -7,14 +7,14 @@ from __future__ import annotations
 
 from functools import total_ordering
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, TypeVar, Generic
+from typing import TYPE_CHECKING, TypeVar, overload
 
-from myscript.parser import LiteralType
+from typing import Generic, Sequence, MutableSequence  # for generic type declaration
+from myscript.parser import ScriptSymbol
 from myscript.opcodes import Operand
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, Iterator, Iterable, Sequence, MutableSequence, Mapping
-    from myscript.parser import ScriptSymbol, Literal
+    from typing import Any, Iterator, Iterable, ClassVar
 
 
 _VT = TypeVar('_VT')
@@ -36,6 +36,7 @@ class DataValue(ABC, Generic[_VT]):
 
     @abstractmethod
     def format(self) -> str:
+        """Format the DataValue in a way that produces valid script code which evalutes to the value."""
         ...
 
     def __repr__(self) -> str:
@@ -52,6 +53,9 @@ class DataValue(ABC, Generic[_VT]):
 
 
 class BoolValue(DataValue[bool]):
+    TRUE: ClassVar[BoolValue]
+    FALSE: ClassVar[BoolValue]
+
     optype = Operand.Bool
 
     def format(self) -> str:
@@ -62,6 +66,9 @@ class BoolValue(DataValue[bool]):
 
     def __eq__(self, other: DataValue) -> bool:
         return self._value == bool(other)
+
+BoolValue.TRUE  = BoolValue(True)
+BoolValue.FALSE = BoolValue(False)
 
 @total_ordering
 class IntValue(DataValue[int]):
@@ -83,6 +90,18 @@ class FloatValue(DataValue[float]):
     def __lt__(self, other: DataValue) -> bool:
         return self._value < other.value
 
+
+@overload
+def NumberValue(value: int) -> IntValue: ...
+
+@overload
+def NumberValue(value: float) -> FloatValue: ...
+
+def NumberValue(value):
+    """overloaded constructor that will create IntValue or FloatValue as appropriate"""
+    if isinstance(value, int):
+        return IntValue(value)
+    return FloatValue(value)
 
 class StringValue(DataValue[str]):
     optype = Operand.String
@@ -144,27 +163,3 @@ class BlockValue(DataValue[Sequence[ScriptSymbol]]):
 
     def __iter__(self) -> Iterator[ScriptSymbol]:
         return iter(self.value)
-
-
-# for DataValue types with a closed set of values - always reuse the same instances
-_TRUE = BoolValue(True)
-_FALSE = BoolValue(False)
-
-def _eval_bool(literal: Literal) -> BoolValue:
-    return _TRUE if literal.value else _FALSE
-
-
-_LITERALS: Mapping[LiteralType, Callable[[Any], DataValue]] = {
-    LiteralType.Bool    : _eval_bool,
-    LiteralType.Integer : IntValue,
-    LiteralType.Float   : FloatValue,
-    LiteralType.String  : StringValue,
-    LiteralType.Array   : ArrayValue,
-    LiteralType.Block   : BlockValue,
-}
-
-def eval_literal(literal: Literal) -> DataValue:
-    ctor = _LITERALS.get(literal.type)
-    if ctor is None:
-        raise NotImplementedError('could not evaluate literal', literal)
-    return ctor(literal.value)

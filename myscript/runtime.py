@@ -8,18 +8,30 @@ from __future__ import annotations
 from collections import deque, ChainMap as chainmap
 from typing import TYPE_CHECKING
 
-from myscript.lang import DataType
-from myscript.values import ArrayValue
+from myscript.parser import SymbolType, LiteralType, Lexer, Parser
 from myscript.exceptions import ScriptError
-from myscript.ops import apply_operator
+from myscript.opimpl import apply_operator, OperandError
+
+from myscript.values import (
+    BoolValue, IntValue, FloatValue, StringValue, ArrayValue, BlockValue
+)
 
 if TYPE_CHECKING:
-    from typing import Union, Optional, Iterator, Iterable, Mapping, ChainMap, Deque
-    from myscript.parser import Parser, Token
-    from myscript.values import DataValue
+    from typing import Any, Union, Optional, Callable, Iterator, Iterable, Mapping, ChainMap, Deque
+    from myscript.parser import ScriptSymbol, Identifier, Literal, OperatorSym
+    from myscript.values import DataValue, BoolValue
 
 
+def _eval_bool(value: bool) -> BoolValue:
+    return BoolValue.TRUE if value else BoolValue.FALSE
 
+_simple_literals: Mapping[LiteralType, Callable[[Any], DataValue]] = {
+    LiteralType.Bool    : _eval_bool,
+    LiteralType.Integer : IntValue,
+    LiteralType.Float   : FloatValue,
+    LiteralType.String  : StringValue,
+    LiteralType.Block   : BlockValue,
+}
 
 class ContextFrame:
     _stack: Deque[DataValue]
@@ -41,6 +53,25 @@ class ContextFrame:
     def get_namespace(self) -> Mapping[str, DataValue]:
         return self._namespace
 
+    def exec(self, prog: Iterable[ScriptSymbol]) -> None:
+        for sym in prog:
+            if sym.get_type() == SymbolType.Operator:
+                sym: OperatorSym
+                try:
+                    apply_operator(self, sym.operator)
+                except OperandError as e:
+                    raise ScriptError(''.join(e.args), sym.meta)
+
+            else:
+                value = self.eval(sym)
+                self.push_stack(value)
+
+    def execs(self, text: str) -> None:
+        parser = self.runtime.create_parser()
+        self.exec(parser.parse(text))
+
+    ## Stack Operations
+    ## TODO move these to EvalStack class?
     def push_stack(self, value: DataValue) -> None:
         self._stack.appendleft(value)
 
@@ -69,49 +100,37 @@ class ContextFrame:
     def clear_stack(self) -> None:
         self._stack.clear()
 
-    def exec(self, prog: Union[str, Iterable[Token]]) -> None:
-        if isinstance(prog, str):
-            parser = self.runtime.parser.clone()
-            parser.input(prog)
-            prog = parser.get_tokens()
-        self._exec(prog)
+    ## Symbol Evaluation
+    def eval(self, sym: ScriptSymbol) -> DataValue:
+        sym_type = sym.get_type()
+        if sym_type == SymbolType.Identifier:
+            sym: Identifier
+            value = self._namespace.get(sym.name)
+            if value is None:
+                raise ScriptError(f"could not resolve identifier '{sym.name}'", sym.meta)
+            return value
 
-    def _exec(self, prog: Iterable[Token]) -> None:
-        for token in prog:
-            try:
-                if token.is_operator():
-                    apply_operator(self, token.item)
-                else:
-                    value = self._eval(token)
-                    self.push_stack(value)
-            except ScriptError as e:
-                e.token = token
-                raise e
-            except Exception as e:
-                raise ScriptError("error executing program", token) from e
+        if sym_type == SymbolType.Literal:
+            sym: Literal
+            return self.eval_literal(sym)
 
-    def eval(self, token: Token) -> DataValue:
-        if token.is_operator():
-            raise ValueError("cannot evaluate operator", token.item)
-        return self._eval(token)
+        raise ValueError('cannot evaluate symbol', sym)
 
-    def _eval(self, token: Token) -> DataValue:
-        if token.is_identifier():
-            name = token.item.name
-            if name not in self._namespace:
-                raise ScriptError(f"could not resolve name '{name}'", token)
-            return self._namespace[name]
-        if token.is_literal():
-            if token.item.type == DataType.Array:
-                return self._eval_array(token)
-            return token.item.get_value()
-        raise ScriptError(f"could not evaluate token", token)
+    def eval_literal(self, literal: Literal) -> DataValue:
+        ctor = _simple_literals.get(literal.type)
+        if ctor is not None:
+            return ctor(literal.value)
 
-    def _eval_array(self, token: Token) -> DataValue:
+        if literal.type == LiteralType.Array:
+            return self._eval_array(literal)
+
+        raise ValueError('could not evaluate literal', literal)
+
+    def _eval_array(self, literal: Literal) -> DataValue:
         # create a new context in which to evaluate the array
         array_ctx = self.create_child()
-        array_ctx.exec(token.item.value)
-        return ArrayValue(list(array_ctx.iter_stack_result()))
+        array_ctx.exec(literal.value)
+        return ArrayValue(array_ctx.iter_stack_result())
 
     def __str__(self) -> str:
         return ' '.join(
@@ -120,24 +139,47 @@ class ContextFrame:
 
     def format_stack(self) -> str:
         return '\n'.join(
-            f"[{i}]: <{value.type.name}> {value!s}"
+            f"[{i}]: {value!r}"
             for i, value in enumerate(self.iter_stack())
         )
 
 
+
+class ScriptParser:
+    """Parse a block of code text into script symbols.
+
+    This class encapsulates the Lexer held by the ScriptRuntime.
+    It allows new ScriptParsers to be created on the fly in a somewhat more efficient manner."""
+
+    _text: str
+    def __init__(self, runtime: ScriptRuntime, lexer: Lexer):
+        self.runtime = runtime
+        self._lexer = lexer
+
+    def parse(self, text: str) -> Iterator[ScriptSymbol]:
+        self._text = text
+        self._lexer.input(text)
+        tokens = self._lexer.get_tokens()
+        parser = Parser(tokens)
+        yield from parser.get_symbols()
+
 class ScriptRuntime:
-    def __init__(self, parser: Parser):
-        self.parser = parser
+    def __init__(self, lexer: Optional[Lexer] = None):
+        self._lexer = lexer or Lexer()
         self.root = ContextFrame(self, None)
 
-    def exec(self, text: str) -> None:
-        self.parser.input(text)
-        self.root.exec(self.parser.get_tokens())
-        
-        print(self.root.format_stack())
+    def create_parser(self) -> ScriptParser:
+        return ScriptParser(self, self._lexer.clone())
 
     def get_globals(self) -> Mapping[str, DataValue]:
         return self.root.get_namespace()
+
+    def run_script(self, text: str) -> None:
+        parser = ScriptParser(self, self._lexer)
+        sym = parser.parse(text)
+        self.root.exec(sym)
+
+        print(self.root.format_stack())
 
 
 if __name__ == '__main__':
@@ -150,12 +192,10 @@ if __name__ == '__main__':
         """ { -1 5 * [ 'step' ] + }! """,
     ]
 
-    parser = Parser()
     for test in tests:
         print('>>>', test)
-
-        runtime = ScriptRuntime(parser)
-        runtime.exec(test)
+        rt = ScriptRuntime()
+        rt.run_script(test)
 
 
 """
