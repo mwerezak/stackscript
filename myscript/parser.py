@@ -16,62 +16,22 @@ from myscript.lang import DataType, Operator
 from myscript.errors import ScriptError
 
 if TYPE_CHECKING:
-    from typing import Any, Union, Type, Iterator,  Callable
-
-
-
-# class Token(NamedTuple):
-#     text: str
-#     item: Union[Operator, Literal, Identifier, SpecialToken]
-#     lineno: int
-#     lexpos: int
-#
-#     def __repr__(self) -> str:
-#         return f'{self.__class__.__qualname__}({self.item!r})'
-#
-#     def __str__(self) -> str:
-#         return self.text
-#
-#     def is_operator(self) -> bool:
-#         return isinstance(self.item, Operator)
-#
-#     def is_literal(self) -> bool:
-#         return isinstance(self.item, Literal)
-#
-#     def is_identifier(self) -> bool:
-#         return isinstance(self.item, Identifier)
-#
-#     def is_special(self, special: Optional[SpecialToken] = None) -> bool:
-#         if special is None:
-#             return isinstance(self.item, SpecialToken)
-#         return self.item == special
-#
-#
-# class Literal(NamedTuple):
-#     type: DataType
-#     value: Any
-#
-#     def get_value(self) -> DataValue:
-#         return DataValue.create(self.type, self.value)
-#
-# class Identifier(NamedTuple):
-#     name: str
-#
-# class SpecialToken(Enum):
-#     StartBlock = auto()
-#     EndBlock   = auto()
-#     StartArray = auto()
-#     EndArray   = auto()
-#
-#     def __repr__(self) -> str:
-#         return f'<{self.__class__.__qualname__}.{self.name}>'
+    from typing import Any, Union, Optional, Type, Iterator, Iterable, Callable, Mapping
 
 
 ###### Lexer
 
-@runtime_checkable
-class Token(Protocol):
-    text: str
+if TYPE_CHECKING:
+    TokenData = Union['DelimiterToken', 'OperatorToken', 'PrimitiveLiteralToken', 'IdentifierToken']
+
+# @runtime_checkable
+# class TokenData(Protocol):
+#     text: str
+
+class Token(NamedTuple):
+    data: TokenData
+    lineno: int
+    lexpos: int
 
 class Delimiter(Enum):
     StartBlock = r'{'
@@ -94,7 +54,7 @@ class OperatorToken(NamedTuple):
     text: str
     operator: Operator
 
-class Literal(Enum):
+class PrimitiveLiteral(Enum):
     Bool    = r'true|false'
     Integer = r'[+-]?[0-9]+(?!\.)'
     Float   = r'[+-]?([0-9]+\.?[0-9]*|[0-9]*\.?[0-9]+)'
@@ -107,18 +67,14 @@ class Literal(Enum):
     def pattern(self) -> str:
         return self.value
 
-class LiteralToken(NamedTuple):
+## Primitive Literals
+class PrimitiveToken(NamedTuple):
     text: str
-    literal: Literal
+    literal: PrimitiveLiteral
 
 class IdentifierToken(NamedTuple):
     text: str
 
-class TokenData(NamedTuple):
-    """Output data type from the Lexer."""
-    token: Token
-    lineno: int
-    lexpos: int
 
 ## PLY Rules
 class Lexer:
@@ -138,7 +94,7 @@ class Lexer:
         *(delim.name for delim in Delimiter),
 
         ## Literals
-        *(lit.name for lit in Literal),
+        *(lit.name for lit in PrimitiveLiteral),
 
         ## Operators
         *(op.name for op in Operator),
@@ -172,10 +128,9 @@ class Lexer:
     def input(self, text: str) -> None:
         self._lexer.input(text)
 
-    def get_tokens(self) -> Iterator[TokenData]:
-        """Iterate through (token, lineno, lexpos) tuples."""
+    def get_tokens(self) -> Iterator[Token]:
         for t in self._lexer:
-            yield TokenData(t.value, t.lineno, t.lexpos)
+            yield Token(t.value, t.lineno, t.lexpos)
 
 ## Lexing rules
 ## The order here is important, it defines the rule precedence
@@ -204,8 +159,8 @@ for delim in Delimiter:
     handler.add_handler(Lexer)
 
 ## Literals
-for lit in Literal:
-    handler = TokenHandler(lit.name, lit.pattern, LiteralToken, lit)
+for lit in PrimitiveLiteral:
+    handler = TokenHandler(lit.name, lit.pattern, PrimitiveToken, lit)
     handler.add_handler(Lexer)
 
 ## Operators
@@ -218,8 +173,10 @@ for op in Operator:
 def t_Identifier(self, t):
     reserved = self.reserved.get(t.value)
     if reserved is not None:
+        # noinspection PyTypeChecker
         t.value = OperatorToken(t.value, reserved)
     else:
+        # noinspection PyTypeChecker
         t.value = IdentifierToken(t.value)
     return t
 Lexer.t_Identifier = t_Identifier
@@ -228,6 +185,131 @@ Lexer.t_Identifier = t_Identifier
 
 ###### Parser
 
+# Note: all ScriptSymbol types must be IMMUTABLE!
+
+@runtime_checkable
+class ScriptSymbol(Protocol):
+    meta: SymbolMeta
+
+class SymbolMeta(NamedTuple):
+    text: str
+    lineno: int
+    lexpos: int
+
+class Identifier(NamedTuple):
+    name: str
+    meta: SymbolMeta
+
+# closely related to but distinct from the set of data types
+class LiteralType(Enum):
+    Bool   = auto()
+    Number = auto()
+    String = auto()
+    Array  = auto()
+    Block  = auto()
+
+class Literal(NamedTuple):
+    type: LiteralType
+    value: Any  ## MUST BE IMMUTABLE
+    meta: SymbolMeta
+
+class OperatorSym(NamedTuple):
+    operator: Operator
+    meta: SymbolMeta
+
+_SYM_TYPES = (
+    Identifier,
+    Literal,
+    OperatorSym,
+)
+
+class Parser:
+    _delimiters = {
+        Delimiter.StartBlock : Delimiter.EndBlock,
+        Delimiter.StartArray : Delimiter.EndArray,
+    }
+
+    _parse_tokens: Mapping[Type[TokenData], Callable[[TokenData, SymbolMeta], ScriptSymbol]]
+
+    _parse_primitive: Mapping[PrimitiveLiteral, Callable[[PrimitiveToken, SymbolMeta], Literal]]
+
+    def __init__(self):
+        self._parse_tokens = {
+            DelimiterToken  : self._parse_delimiter,
+            OperatorToken   : self._parse_operator,
+            PrimitiveToken  : self._parse_primitive,
+            IdentifierToken : self._parse_identifier,
+        }
+
+        self._parse_primitive = {
+            PrimitiveLiteral.Bool    : self._parse_bool,
+            PrimitiveLiteral.Float   : self._parse_float,
+            PrimitiveLiteral.Integer : self._parse_int,
+            PrimitiveLiteral.String  : self._parse_string,
+        }
+
+    _tokens: Iterator[Token]
+    def input(self, tokens: Iterable[Token]) -> None:
+        self._tokens = iter(tokens)
+
+    def parse(self) -> Iterator[ScriptSymbol]:
+        for token in self._tokens:
+            meta = SymbolMeta(
+                text = token.data.text,
+                lineno = token.lineno,
+                lexpos = token.lexpos,
+            )
+
+            for toktype, fparse in self._parse_tokens.items():
+                if isinstance(token, toktype):
+                    yield fparse(token, meta)
+                    break
+            raise NotImplementedError('no method to parse token: ' + repr(token))
+
+    def _parse_delimiter(self, token: DelimiterToken, meta: SymbolMeta) -> Delimiter:
+        pass
+
+    def _parse_operator(self, token: OperatorToken, meta: SymbolMeta) -> OperatorSym:
+        return OperatorSym(token.operator, meta)
+
+    def _parse_primitive(self, token: PrimitiveToken, meta: SymbolMeta) -> Literal:
+        return self._parse_primitive[token.literal](token, meta)
+
+    def _parse_identifier(self, token: IdentifierToken, meta: SymbolMeta) -> Identifier:
+        return Identifier(token.text, meta)
+
+    _bool_values = {
+        'true'  : True,
+        'false' : False,
+    }
+    def _parse_bool(self, token: PrimitiveToken, meta: SymbolMeta) -> Literal:
+        return Literal(LiteralType.Bool, self._bool_values[token.text], meta)
+
+    # todo HEX, OCT, BIN literals
+    def _parse_int(self, token: PrimitiveToken, meta: SymbolMeta) -> Literal:
+        return Literal(LiteralType.Number, int(token.text), meta)
+
+    def _parse_float(self, token: PrimitiveToken, meta: SymbolMeta) -> Literal:
+        return Literal(LiteralType.Number, float(token.text), meta)
+
+    _str_delim = ("'", '"')
+    def _parse_string(self, token: PrimitiveToken, meta: SymbolMeta) -> Literal:
+        if token.text[0] != token.text[-1] or token.text[0] not in self._str_delim:
+            raise ScriptError('malformed string')
+        return Literal(LiteralType.String, token.text[1:-1], meta)
+
+
+#         tokens = self.lexer.get_tokens()
+#         while (token := self._get_next(tokens)) is not None:
+#             if token.is_special():
+#                 literal = self._parse_recursive(tokens, token.item)
+#                 token = Token(item=literal, text=token.text, lineno=token.lineno, lexpos=token.lexpos)
+#             yield token        pass
+
+    def _parse_delimiter_recursive(self):
+        pass
+
+print(Parser._parse_tokens)
 
 # class Parser:
 #     _matching = {
