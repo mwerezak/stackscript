@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from myscript.lang import DataType
 from myscript.values import ArrayValue
-from myscript.errors import ScriptError
+from myscript.exceptions import ScriptError
 from myscript.ops import apply_operator
 
 if TYPE_CHECKING:

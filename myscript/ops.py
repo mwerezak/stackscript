@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, NamedTuple
 
 from myscript.lang import Operator, DataType
 from myscript.values import DataValue, BoolValue, NumberValue, StringValue, ArrayValue, BlockValue
-from myscript.errors import ScriptError
+from myscript.exceptions import ScriptError
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Iterator, Sequence, MutableMapping, MutableSequence

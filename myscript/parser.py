@@ -1,4 +1,4 @@
-""" An interpreter for a GolfScript-like language.
+""" An interpreter for a stack-based language.
 | Author: Mike Werezak <mwerezak@gmail.com>
 | Created: 2021/05/20
 """
@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING, NamedTuple, Protocol, runtime_checkable
 
 from ply import lex
 
-from myscript.lang import DataType, Operator
-from myscript.errors import ScriptError
+from myscript.lang import Operator
+from myscript.exceptions import ScriptError
 
 if TYPE_CHECKING:
     from typing import Any, Union, Optional, Type, Iterator, Iterable, Callable, Mapping
