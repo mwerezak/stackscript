@@ -30,10 +30,10 @@ class DataDef(NamedTuple):
 class DataType(Enum):
     """Data are things that can be pushed onto the stack."""
     Bool        = auto()
-    Number      = auto() 
-    String      = auto() 
-    Array       = auto() 
-    Block       = auto() 
+    Number      = auto()
+    String      = auto()
+    Array       = auto()
+    Block       = auto()
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__qualname__}.{self.name}>'

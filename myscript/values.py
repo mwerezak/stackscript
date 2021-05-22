@@ -9,7 +9,7 @@ from functools import total_ordering
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, TypeVar, Generic
 
-from typing import Union, Iterator, Iterable, Sequence
+from typing import Union, Iterator, Iterable, Sequence, MutableSequence
 
 from myscript.lang import DataType
 
@@ -54,15 +54,16 @@ class DataValue(ABC, Generic[_VT]):
     def __str__(self) -> str:
         return self.format()
 
+    ## TODO separate literal evaluation from data types
     @staticmethod
     def create(type: DataType, value: Any) -> DataValue:
         return _DATA_TYPES[type](value)
 
     def __hash__(self) -> int:
-        return hash(self.value)
+        return hash(self._value)
 
     def __eq__(self, other: DataValue) -> bool:
-        return self.value == other.value
+        return self._value == other.value
 
 
 @_data(DataType.Bool)
@@ -77,10 +78,10 @@ class BoolValue(DataValue[bool]):
         return 'true' if self.value else 'false'
 
     def __bool__(self) -> bool:
-        return self.value
+        return self._value
 
     def __eq__(self, other: DataValue) -> bool:
-        return self.value == bool(other)
+        return self._value == bool(other)
 
 @total_ordering
 @_data(DataType.Number)
@@ -92,13 +93,13 @@ class NumberValue(DataValue[Union[int, float]]):
         return self.format()
 
     def format(self) -> str:
-        return str(self.value)
+        return str(self._value)
 
     def __bool__(self) -> bool:
-        return bool(self.value)
+        return bool(self._value)
 
     def __lt__(self, other: DataValue) -> bool:
-        return self.value < other.value
+        return self._value < other.value
 
 
 @_data(DataType.String)
@@ -110,23 +111,21 @@ class StringValue(DataValue[str]):
         return self.format()
 
     def format(self) -> str:
-        return repr(self.value)
+        return repr(self._value)
 
     def __len__(self) -> int:
-        return len(self.value)
+        return len(self._value)
 
     def __iter__(self) -> Iterator[StringValue]:
-        for ch in self.value:
+        for ch in self._value:
             yield StringValue(ch)
-
-    def __hash__(self) -> int:
-        return hash(self.value)
 
 
 @_data(DataType.Array)
-class ArrayValue(DataValue[Sequence[DataValue]]):
+class ArrayValue(DataValue[MutableSequence[DataValue]]):
+    _value: list
     def __init__(self, value: Iterable[DataValue]):
-        super().__init__(tuple(value))
+        super().__init__(list(value))
 
     def __repr__(self) -> str:
         return f'{self.__class__.__qualname__}({self.value!r})'
@@ -139,17 +138,30 @@ class ArrayValue(DataValue[Sequence[DataValue]]):
         return '[' + content + ']'
 
     def __len__(self) -> int:
-        return len(self.value)
+        return len(self._value)
 
     def __iter__(self) -> Iterator[DataValue]:
-        return iter(self.value)
+        return iter(self._value)
+
+    def __hash__(self) -> int:
+        return hash(id(self._value))
+
+    def __eq__(self, other: DataValue) -> bool:
+        if self.type == other.type:
+            return self._value is other.value
+        return False
 
     def unpack(self) -> Iterator[Any]:
         for item in self:
             yield item.value
 
+
 @_data(DataType.Block)
 class BlockValue(DataValue[Sequence['Token']]):
+    _value: tuple
+    def __init__(self, value: Iterable['Token']):
+        super().__init__(tuple(value))
+
     def __repr__(self) -> str:
         return f'{self.__class__.__qualname__}({self.value!r})'
 
@@ -162,3 +174,8 @@ class BlockValue(DataValue[Sequence['Token']]):
 
     def __iter__(self) -> Iterator['Token']:
         return iter(self.value)
+
+    def __eq__(self, other: DataValue) -> bool:
+        if self.type == other.type:
+            return self._value == other.value
+        return False

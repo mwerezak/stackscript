@@ -153,6 +153,11 @@ def operator_eval(ctx, text):
     ctx.exec(text.value)
     return ()
 
+@operator_func(Operator.Eval, DataType.Number)
+def operator_eval(ctx, block):
+    sub_ctx = ctx.create_child()
+    sub_ctx.exec(block)
+    yield from sub_ctx.iter_stack_result()
 
 ###### Rotate
 
@@ -201,24 +206,26 @@ def operator_break(ctx):
 # concatenate arrays
 @operator_func(Operator.Add, DataType.Array, DataType.Array)
 def operator_add(ctx, a, b):
-    yield ArrayValue(
-        data for array in (a, b)
-        for data in array.unpack()
-    )
+    a.value.extend(b.value)
+    yield a
 
 # append item to end of array
+@operator_func(Operator.Add, DataType.Array, DataType.Block)
 @operator_func(Operator.Add, DataType.Array, DataType.String)
 @operator_func(Operator.Add, DataType.Array, DataType.Number)
 @operator_func(Operator.Add, DataType.Array, DataType.Bool)
-def operator_add(ctx, arr, item):
-    yield ArrayValue([*arr, item])
+def operator_add(ctx, array, item):
+    array.value.append(item)
+    yield array
 
 # insert item at beginning of array
+@operator_func(Operator.Add, DataType.Block,  DataType.Array)
 @operator_func(Operator.Add, DataType.String, DataType.Array)
 @operator_func(Operator.Add, DataType.Number, DataType.Array)
 @operator_func(Operator.Add, DataType.Bool,   DataType.Array)
-def operator_add(ctx, item, arr):
-    yield ArrayValue([item, *arr])
+def operator_add(ctx, item, array):
+    array.value.insert(0, item)
+    yield array
 
 # concatenate strings
 @operator_func(Operator.Add, DataType.String, DataType.String)
@@ -233,13 +240,15 @@ def operator_add(ctx, a, b):
 
 ###### Sub
 
-# setwise difference
+# array difference
 @operator_func(Operator.Sub, DataType.Array, DataType.Array)
 def operator_sub(ctx, a, b):
-    subtract = set(b.unpack())
-    yield ArrayValue([
-        data for data in a if data.value not in subtract
-    ])
+    for item in b:
+        try:
+            a.value.remove(item)
+        except ValueError:
+            pass
+    yield a
 
 @operator_func(Operator.Sub, DataType.Number, DataType.Number)
 def operator_sub(ctx, a, b):
@@ -344,9 +353,9 @@ def operator_size(ctx, item):
 # setwise or (union)
 @operator_func(Operator.BitOr, DataType.Array, DataType.Array)
 def operator_bitor(ctx, a, b):
-    union = set(a.unpack())
-    union.update(b.unpack())
-    yield ArrayValue(list(union))
+    union = set(a)
+    union.update(b)
+    yield ArrayValue(union)
 
 # bitwise or
 @operator_func(Operator.BitOr, DataType.Number, DataType.Number)
@@ -356,9 +365,9 @@ def operator_bitor(ctx, a, b):
 # setwise and (intersection)
 @operator_func(Operator.BitAnd, DataType.Array, DataType.Array)
 def operator_bitand(ctx, a, b):
-    union = set(a.unpack())
-    union.intersection_update(b.unpack())
-    yield ArrayValue(list(union))
+    intersect = set(a)
+    intersect.intersection_update(b)
+    yield ArrayValue(intersect)
 
 # bitwise and
 @operator_func(Operator.BitAnd, DataType.Number, DataType.Number)
@@ -368,9 +377,9 @@ def operator_bitand(ctx, a, b):
 # setwise xor (symmetric difference)
 @operator_func(Operator.BitXor, DataType.Array, DataType.Array)
 def operator_bitxor(ctx, a, b):
-    union = set(a.unpack())
-    union.symmetric_difference_update(b.unpack())
-    yield ArrayValue(list(union))
+    symdiff = set(a)
+    symdiff.symmetric_difference_update(b)
+    yield ArrayValue(symdiff)
 
 # bitwise and
 @operator_func(Operator.BitXor, DataType.Number, DataType.Number)
@@ -419,12 +428,12 @@ if __name__ == '__main__':
     from myscript.parser import Parser
     from myscript.runtime import ScriptRuntime
 
-    from pprint import pprint
-    pprint(OP_REGISTRY)
+    # from pprint import pprint
+    # pprint(OP_REGISTRY)
 
     tests = [
         """ [ 3 2]  [ 1 'b' { 'c' 'd' } ] ~ """,
-        """ [ 1 'b' [ 3 2]`  { 'c' 'd' } ]`  """,
+        """ [ 1 'b' [ 3 2 ]`  { 'c' 'd' } ]`  """,
         """ [ 1 2 3 - 4 5 6 7 + ] """,
         """ 'c' ['a' 'b'] + """,
         """ { -1 5 * [ 'step' ] + }! """,
@@ -438,6 +447,9 @@ if __name__ == '__main__':
         """ [1 2 3 4 5 6] [2 4 5] -""",
         """ [7 6; 5 4 3 2 1] {3 <=}/ 0 false = """,
         """ [ 1 2 3 ] {2*}/ . [ 2 4 6 ] = """,
+        """ [ 1 3 4 ] [ 7 3 1 2 ] | """,
+        """ [ 1 3 4 ] [ 7 3 1 2 ] & """,
+        """ [ 1 3 4 ] [ 7 3 1 2 ] ^ """,
 
     ]
 
