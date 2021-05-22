@@ -10,7 +10,6 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, NamedTuple
 
 from myscript.opcodes import Operator, Operand
-from myscript.exceptions import ScriptError
 
 from myscript.values import (
     DataValue, BoolValue, IntValue, FloatValue, NumberValue, StringValue, ArrayValue, BlockValue
@@ -25,13 +24,14 @@ if TYPE_CHECKING:
     OperatorFunc = Callable[[ContextFrame, ...], Iterator[DataValue]]
 
 
-
+## TODO simplify this to operator -> signature -> OperatorData
 # map operator -> arity -> signature -> operator data
 OP_REGISTRY: MutableMapping[Operator, MutableSequence[MutableMapping[Signature, OperatorData]]] = defaultdict(list)
 
 class OperandError(Exception):
     pass
 
+## TODO better name
 class OperatorData(NamedTuple):
     op: Operator
     signature: Sequence[Operand]

@@ -6,12 +6,10 @@
 from __future__ import annotations
 
 from enum import Enum, auto
-from functools import total_ordering
 from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
-    from typing import Any, Union, Callable, Sequence, MutableSequence
-    from myscript.parser import Token
+    pass
 
 
 class Operand(Enum):

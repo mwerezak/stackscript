@@ -17,7 +17,7 @@ from myscript.values import (
 )
 
 if TYPE_CHECKING:
-    from typing import Any, Union, Optional, Callable, Iterator, Iterable, Mapping, ChainMap, Deque
+    from typing import Any, Optional, Callable, Iterator, Iterable, Mapping, ChainMap, Deque
     from myscript.parser import ScriptSymbol, Identifier, Literal, OperatorSym
     from myscript.values import DataValue, BoolValue
 
@@ -59,8 +59,9 @@ class ContextFrame:
                 sym: OperatorSym
                 try:
                     apply_operator(self, sym.operator)
-                except OperandError as e:
-                    raise ScriptError(''.join(e.args), sym.meta)
+                except OperandError as err:
+                    message = ' '.join(str(o) for o in err.args)
+                    raise ScriptError(message, sym.meta)
 
             else:
                 value = self.eval(sym)
@@ -183,8 +184,6 @@ class ScriptRuntime:
 
 
 if __name__ == '__main__':
-    from myscript.parser import Parser
-
     tests = [
         """1 1+ """,
         """ [ 1 2 3 - 4 5 6 7 + ] """,
