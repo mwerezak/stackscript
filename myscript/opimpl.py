@@ -10,7 +10,7 @@ from functools import wraps
 from collections import defaultdict
 from typing import TYPE_CHECKING, NamedTuple
 
-from myscript.opcodes import Operator, DataType
+from myscript.opcodes import Operator, Operand
 from myscript.values import DataValue, BoolValue, NumberValue, StringValue, ArrayValue, BlockValue
 from myscript.exceptions import ScriptError
 
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from typing import Any, Callable, Iterator, Sequence, MutableMapping, MutableSequence
     from myscript.runtime import ContextFrame
 
-    Signature = Sequence[DataType]
+    Signature = Sequence[Operand]
     OperatorFunc = Callable[[ContextFrame, ...], Iterator[DataValue]]
 
 
@@ -29,7 +29,7 @@ OP_REGISTRY: MutableMapping[Operator, MutableSequence[MutableMapping[Signature, 
 
 class OperatorData(NamedTuple):
     op: Operator
-    signature: Sequence[DataType]
+    signature: Sequence[Operand]
     func: OperatorFunc
 
 
@@ -80,7 +80,7 @@ def _register_operator(opdata: OperatorData) -> None:
         raise ValueError(f"signature {signature} is already registered for {opdata.op}")
     registry[nargs][signature] = opdata
 
-def operator_func(op: Operator, *signature: DataType):
+def operator_func(op: Operator, *signature: Operand):
     def decorator(func: OperatorFunc):
         # print(func.__name__, signature)
         opdata = OperatorData(op, signature, func)
@@ -89,7 +89,7 @@ def operator_func(op: Operator, *signature: DataType):
     return decorator
 
 # register an operator for all possible permutations of args
-def operator_permute(op: Operator, primary: DataType, *secondary: DataType):
+def operator_permute(op: Operator, primary: Operand, *secondary: Operand):
     base_sig = [primary, *secondary]
 
     def decorator(func: OperatorFunc):
@@ -118,22 +118,22 @@ class _ReorderFunc(NamedTuple):
 ###### Invert
 
 # "dump" the array onto the stack
-@operator_func(Operator.Invert, DataType.Array)
+@operator_func(Operator.Invert, Operand.Array)
 def operator_invert(ctx, o):
     yield from o.value 
 
 # bitwise not
-@operator_func(Operator.Invert, DataType.Number)
+@operator_func(Operator.Invert, Operand.Number)
 def operator_invert(ctx, x):
     yield NumberValue(~x.value)
 
 ###### Inspect
 
-@operator_func(Operator.Inspect, DataType.Block)
-@operator_func(Operator.Inspect, DataType.Array)
-@operator_func(Operator.Inspect, DataType.String)
-@operator_func(Operator.Inspect, DataType.Number)
-@operator_func(Operator.Inspect, DataType.Bool)
+@operator_func(Operator.Inspect, Operand.Block)
+@operator_func(Operator.Inspect, Operand.Array)
+@operator_func(Operator.Inspect, Operand.String)
+@operator_func(Operator.Inspect, Operand.Number)
+@operator_func(Operator.Inspect, Operand.Bool)
 def operator_inspect(ctx, o):
     yield StringValue(o.format())
 
@@ -141,19 +141,19 @@ def operator_inspect(ctx, o):
 ###### Eval
 
 # evaluate a block in its own nested context
-@operator_func(Operator.Eval, DataType.Block)
+@operator_func(Operator.Eval, Operand.Block)
 def operator_eval(ctx, block):
     sub_ctx = ctx.create_child()
     sub_ctx.exec(block)
     yield from sub_ctx.iter_stack_result()
 
 # evaluate a string directly in the current context
-@operator_func(Operator.Eval, DataType.String)
+@operator_func(Operator.Eval, Operand.String)
 def operator_eval(ctx, text):
     ctx.exec(text.value)
     return ()
 
-@operator_func(Operator.Eval, DataType.Number)
+@operator_func(Operator.Eval, Operand.Number)
 def operator_eval(ctx, block):
     sub_ctx = ctx.create_child()
     sub_ctx.exec(block)
@@ -162,7 +162,7 @@ def operator_eval(ctx, block):
 ###### Rotate
 
 # move the ith stack element to top
-@operator_func(Operator.Rotate, DataType.Number)
+@operator_func(Operator.Rotate, Operand.Number)
 def operator_rotate(ctx, index):
     item = ctx.peek_stack(index.value)
     ctx.remove_stack(index.value)
@@ -172,7 +172,7 @@ def operator_rotate(ctx, index):
 ###### Index
 
 # copy the ith stack element to top
-@operator_func(Operator.Index, DataType.Number)
+@operator_func(Operator.Index, Operand.Number)
 def operator_index(ctx, index):
     yield ctx.peek_stack(index.value)
 
@@ -185,11 +185,11 @@ def operator_dup(ctx):
 
 ###### Drop
 
-@operator_func(Operator.Drop, DataType.Bool)
-@operator_func(Operator.Drop, DataType.Number)
-@operator_func(Operator.Drop, DataType.String)
-@operator_func(Operator.Drop, DataType.Array)
-@operator_func(Operator.Drop, DataType.Block)
+@operator_func(Operator.Drop, Operand.Bool)
+@operator_func(Operator.Drop, Operand.Number)
+@operator_func(Operator.Drop, Operand.String)
+@operator_func(Operator.Drop, Operand.Array)
+@operator_func(Operator.Drop, Operand.Block)
 def operator_drop(ctx, item):
     return ()  # no-op, just drop the item
 
@@ -204,36 +204,36 @@ def operator_break(ctx):
 ###### Add
 
 # concatenate arrays
-@operator_func(Operator.Add, DataType.Array, DataType.Array)
+@operator_func(Operator.Add, Operand.Array, Operand.Array)
 def operator_add(ctx, a, b):
     a.value.extend(b.value)
     yield a
 
 # append item to end of array
-@operator_func(Operator.Add, DataType.Array, DataType.Block)
-@operator_func(Operator.Add, DataType.Array, DataType.String)
-@operator_func(Operator.Add, DataType.Array, DataType.Number)
-@operator_func(Operator.Add, DataType.Array, DataType.Bool)
+@operator_func(Operator.Add, Operand.Array, Operand.Block)
+@operator_func(Operator.Add, Operand.Array, Operand.String)
+@operator_func(Operator.Add, Operand.Array, Operand.Number)
+@operator_func(Operator.Add, Operand.Array, Operand.Bool)
 def operator_add(ctx, array, item):
     array.value.append(item)
     yield array
 
 # insert item at beginning of array
-@operator_func(Operator.Add, DataType.Block,  DataType.Array)
-@operator_func(Operator.Add, DataType.String, DataType.Array)
-@operator_func(Operator.Add, DataType.Number, DataType.Array)
-@operator_func(Operator.Add, DataType.Bool,   DataType.Array)
+@operator_func(Operator.Add, Operand.Block, Operand.Array)
+@operator_func(Operator.Add, Operand.String, Operand.Array)
+@operator_func(Operator.Add, Operand.Number, Operand.Array)
+@operator_func(Operator.Add, Operand.Bool, Operand.Array)
 def operator_add(ctx, item, array):
     array.value.insert(0, item)
     yield array
 
 # concatenate strings
-@operator_func(Operator.Add, DataType.String, DataType.String)
+@operator_func(Operator.Add, Operand.String, Operand.String)
 def operator_add(ctx, a, b):
     yield StringValue(a.value + b.value)
 
 # add numbers
-@operator_func(Operator.Add, DataType.Number, DataType.Number)
+@operator_func(Operator.Add, Operand.Number, Operand.Number)
 def operator_add(ctx, a, b):
     yield NumberValue(a.value + b.value)
 
@@ -241,7 +241,7 @@ def operator_add(ctx, a, b):
 ###### Sub
 
 # array difference
-@operator_func(Operator.Sub, DataType.Array, DataType.Array)
+@operator_func(Operator.Sub, Operand.Array, Operand.Array)
 def operator_sub(ctx, a, b):
     for item in b:
         try:
@@ -250,14 +250,14 @@ def operator_sub(ctx, a, b):
             pass
     yield a
 
-@operator_func(Operator.Sub, DataType.Number, DataType.Number)
+@operator_func(Operator.Sub, Operand.Number, Operand.Number)
 def operator_sub(ctx, a, b):
     yield NumberValue(a.value - b.value)
 
 ###### Mul
 
 # execute a block a certain number of times in the current context
-@operator_permute(Operator.Mul, DataType.Number, DataType.Block)
+@operator_permute(Operator.Mul, Operand.Number, Operand.Block)
 def operator_mul(ctx, repeat, block):
     for i in range(repeat.value):
         ctx.exec(block)
@@ -265,19 +265,19 @@ def operator_mul(ctx, repeat, block):
 
 
 # array/string repeat
-@operator_permute(Operator.Mul, DataType.Number, DataType.Array)
+@operator_permute(Operator.Mul, Operand.Number, Operand.Array)
 def operator_mul(ctx, repeat, array):
     yield ArrayValue([
         data for data in array for i in range(repeat.value)
     ])
 
 # array/string repeat
-@operator_permute(Operator.Mul, DataType.Number, DataType.String)
+@operator_permute(Operator.Mul, Operand.Number, Operand.String)
 def operator_mul(ctx, repeat, text):
     text = ''.join(text.value for i in range(repeat.value))
     yield StringValue(text)
 
-@operator_func(Operator.Mul, DataType.Number, DataType.Number)
+@operator_func(Operator.Mul, Operand.Number, Operand.Number)
 def operator_mul(ctx, a, b):
     yield NumberValue(a.value * b.value)
 
@@ -285,7 +285,7 @@ def operator_mul(ctx, a, b):
 ###### Div
 
 # map. execute a block over all elements.
-@operator_permute(Operator.Div, DataType.Block, DataType.Array)
+@operator_permute(Operator.Div, Operand.Block, Operand.Array)
 def operator_div(ctx, block, array):
     result = []
     for item in array:
@@ -295,7 +295,7 @@ def operator_div(ctx, block, array):
         result.extend(sub_ctx.iter_stack_result())
     yield ArrayValue(result)
 
-@operator_permute(Operator.Div, DataType.Block, DataType.String)
+@operator_permute(Operator.Div, Operand.Block, Operand.String)
 def operator_div(ctx, block, string):
     result = []
     for item in string:
@@ -305,7 +305,7 @@ def operator_div(ctx, block, string):
         result.extend(sub_ctx.iter_stack_result())
     yield ArrayValue(result)
 
-@operator_func(Operator.Div, DataType.Number, DataType.Number)
+@operator_func(Operator.Div, Operand.Number, Operand.Number)
 def operator_div(ctx, a, b):
     yield NumberValue(a.value / b.value)
 
@@ -313,14 +313,14 @@ def operator_div(ctx, a, b):
 ###### Mod
 
 # execute a block over all elements directly in the current context
-@operator_permute(Operator.Mod, DataType.Block, DataType.Array)
+@operator_permute(Operator.Mod, Operand.Block, Operand.Array)
 def operator_mod(ctx, block, array):
     for item in array:
         ctx.push_stack(item)
         ctx.exec(block)
     return ()
 
-@operator_permute(Operator.Mod, DataType.Block, DataType.String)
+@operator_permute(Operator.Mod, Operand.Block, Operand.String)
 def operator_mod(ctx, block, string):
     for item in string:
         ctx.push_stack(item)
@@ -328,22 +328,22 @@ def operator_mod(ctx, block, string):
     return ()
 
 
-@operator_func(Operator.Mod, DataType.Number, DataType.Number)
+@operator_func(Operator.Mod, Operand.Number, Operand.Number)
 def operator_mod(ctx, a, b):
     yield NumberValue(a.value % b.value)
 
 
 ###### Pow
 
-@operator_func(Operator.Pow, DataType.Number, DataType.Number)
+@operator_func(Operator.Pow, Operand.Number, Operand.Number)
 def operator_pow(ctx, a, b):
     yield NumberValue(a.value ** b.value)
 
 
 ###### Size
 
-@operator_func(Operator.Size, DataType.Array)
-@operator_func(Operator.Size, DataType.String)
+@operator_func(Operator.Size, Operand.Array)
+@operator_func(Operator.Size, Operand.String)
 def operator_size(ctx, item):
     yield NumberValue(len(item))
 
@@ -351,72 +351,72 @@ def operator_size(ctx, item):
 ###### Bitwise Or/And/Xor
 
 # setwise or (union)
-@operator_func(Operator.BitOr, DataType.Array, DataType.Array)
+@operator_func(Operator.BitOr, Operand.Array, Operand.Array)
 def operator_bitor(ctx, a, b):
     union = set(a)
     union.update(b)
     yield ArrayValue(union)
 
 # bitwise or
-@operator_func(Operator.BitOr, DataType.Number, DataType.Number)
+@operator_func(Operator.BitOr, Operand.Number, Operand.Number)
 def operator_bitor(ctx, a, b):
     yield NumberValue(a.value | b.value)
 
 # setwise and (intersection)
-@operator_func(Operator.BitAnd, DataType.Array, DataType.Array)
+@operator_func(Operator.BitAnd, Operand.Array, Operand.Array)
 def operator_bitand(ctx, a, b):
     intersect = set(a)
     intersect.intersection_update(b)
     yield ArrayValue(intersect)
 
 # bitwise and
-@operator_func(Operator.BitAnd, DataType.Number, DataType.Number)
+@operator_func(Operator.BitAnd, Operand.Number, Operand.Number)
 def operator_bitand(ctx, a, b):
     yield NumberValue(a.value & b.value)
 
 # setwise xor (symmetric difference)
-@operator_func(Operator.BitXor, DataType.Array, DataType.Array)
+@operator_func(Operator.BitXor, Operand.Array, Operand.Array)
 def operator_bitxor(ctx, a, b):
     symdiff = set(a)
     symdiff.symmetric_difference_update(b)
     yield ArrayValue(symdiff)
 
 # bitwise and
-@operator_func(Operator.BitXor, DataType.Number, DataType.Number)
+@operator_func(Operator.BitXor, Operand.Number, Operand.Number)
 def operator_bitxor(ctx, a, b):
     yield NumberValue(a.value ^ b.value)
 
 
 ###### Logical Comparison
 
-@operator_func(Operator.LT, DataType.Number, DataType.Number)
+@operator_func(Operator.LT, Operand.Number, Operand.Number)
 def operator_lt(ctx, a, b):
     yield BoolValue(a < b)
 
-@operator_func(Operator.LE, DataType.Number, DataType.Number)
+@operator_func(Operator.LE, Operand.Number, Operand.Number)
 def operator_le(ctx, a, b):
     yield BoolValue(a <= b)
 
-@operator_func(Operator.GT, DataType.Number, DataType.Number)
+@operator_func(Operator.GT, Operand.Number, Operand.Number)
 def operator_gt(ctx, a, b):
     yield BoolValue(a > b)
 
-@operator_func(Operator.GE, DataType.Number, DataType.Number)
+@operator_func(Operator.GE, Operand.Number, Operand.Number)
 def operator_ge(ctx, a, b):
     yield BoolValue(a >= b)
 
 ###### Equality
 
-@operator_func(Operator.Equal,    DataType.Array,  DataType.Array)
-@operator_func(Operator.Equal,    DataType.String, DataType.String)
-@operator_permute(Operator.Equal, DataType.String, DataType.Number)
-@operator_permute(Operator.Equal, DataType.String, DataType.Bool)
-@operator_permute(Operator.Equal, DataType.Number, DataType.Bool)
-@operator_func(Operator.Equal,    DataType.Bool,   DataType.Bool)
+@operator_func(Operator.Equal, Operand.Array, Operand.Array)
+@operator_func(Operator.Equal, Operand.String, Operand.String)
+@operator_permute(Operator.Equal, Operand.String, Operand.Number)
+@operator_permute(Operator.Equal, Operand.String, Operand.Bool)
+@operator_permute(Operator.Equal, Operand.Number, Operand.Bool)
+@operator_func(Operator.Equal, Operand.Bool, Operand.Bool)
 def operator_equal(ctx, a, b):
     yield BoolValue(a == b)
 
-@operator_func(Operator.Equal, DataType.Number, DataType.Number)
+@operator_func(Operator.Equal, Operand.Number, Operand.Number)
 def operator_equal(ctx, a, b):
     if isinstance(a.value, int) and isinstance(b.value, int):
         yield BoolValue(a.value == b.value)

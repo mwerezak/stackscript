@@ -9,36 +9,25 @@ from functools import total_ordering
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, TypeVar, Generic
 
-from typing import Union, Iterator, Iterable, Sequence, MutableSequence
-
-from myscript.lang import DataType
+from myscript.opcodes import Operand
 
 if TYPE_CHECKING:
-    from typing import Any
-    from myscript.parser import Token
-    
-
-_DATA_TYPES = {}
-
-def _data(type: DataType):
-    def decorator(cls):
-        cls._type = type
-        _DATA_TYPES[type] = cls
-        return cls
-    return decorator
+    from typing import Any, Union, Iterator, Iterable, Sequence, MutableSequence
+    from myscript.parser import ScriptSymbol
 
 
 _VT = TypeVar('_VT')
 
 class DataValue(ABC, Generic[_VT]):
-    _type: DataType
+    __slots__ = '_value'
 
     def __init__(self, value: _VT):
         self._value = value
 
     @property
-    def type(self) -> DataType:
-        return self._type
+    @abstractmethod
+    def optype(self) -> Operand:
+        ...
 
     @property
     def value(self) -> _VT:
@@ -49,15 +38,10 @@ class DataValue(ABC, Generic[_VT]):
         ...
 
     def __repr__(self) -> str:
-        return f'<Value({self.type.name}: {self._value!r})>'
+        return f'{self.__class__.__name__}({self.value!r})'
 
     def __str__(self) -> str:
         return self.format()
-
-    ## TODO separate literal evaluation from data types
-    @staticmethod
-    def create(type: DataType, value: Any) -> DataValue:
-        return _DATA_TYPES[type](value)
 
     def __hash__(self) -> int:
         return hash(self._value)
@@ -66,13 +50,8 @@ class DataValue(ABC, Generic[_VT]):
         return self._value == other.value
 
 
-@_data(DataType.Bool)
 class BoolValue(DataValue[bool]):
-    def __repr__(self) -> str:
-        return f'{self.__class__.__qualname__}({self.value!r})'
-
-    def __str__(self) -> str:
-        return self.format()
+    optype = Operand.Bool
 
     def format(self) -> str:
         return 'true' if self.value else 'false'
@@ -84,31 +63,28 @@ class BoolValue(DataValue[bool]):
         return self._value == bool(other)
 
 @total_ordering
-@_data(DataType.Number)
-class NumberValue(DataValue[Union[int, float]]):
-    def __repr__(self) -> str:
-        return f'{self.__class__.__qualname__}({self.value!r})'
-
-    def __str__(self) -> str:
-        return self.format()
+class IntegerValue(DataValue[int]):
+    optype = Operand.Number
 
     def format(self) -> str:
         return str(self._value)
 
-    def __bool__(self) -> bool:
-        return bool(self._value)
+    def __lt__(self, other: DataValue) -> bool:
+        return self._value < other.value
+
+@total_ordering
+class FloatValue(DataValue[float]):
+    optype = Operand.Number
+
+    def format(self) -> str:
+        return str(self._value)
 
     def __lt__(self, other: DataValue) -> bool:
         return self._value < other.value
 
 
-@_data(DataType.String)
 class StringValue(DataValue[str]):
-    def __repr__(self) -> str:
-        return f'{self.__class__.__qualname__}({self.value!r})'
-
-    def __str__(self) -> str:
-        return self.format()
+    optype = Operand.String
 
     def format(self) -> str:
         return repr(self._value)
@@ -120,18 +96,11 @@ class StringValue(DataValue[str]):
         for ch in self._value:
             yield StringValue(ch)
 
-
-@_data(DataType.Array)
 class ArrayValue(DataValue[MutableSequence[DataValue]]):
-    _value: list
+    optype = Operand.Array
+
     def __init__(self, value: Iterable[DataValue]):
         super().__init__(list(value))
-
-    def __repr__(self) -> str:
-        return f'{self.__class__.__qualname__}({self.value!r})'
-
-    def __str__(self) -> str:
-        return self.format()
 
     def format(self) -> str:
         content = ' '.join(value.format() for value in self.value)
@@ -146,20 +115,20 @@ class ArrayValue(DataValue[MutableSequence[DataValue]]):
     def __hash__(self) -> int:
         return hash(id(self._value))
 
+    # being mutable, Arrays are only equal if they reference the same sequence instance
     def __eq__(self, other: DataValue) -> bool:
-        if self.type == other.type:
-            return self._value is other.value
+        if isinstance(other, ArrayValue):
+            return self._value is other._value
         return False
 
     def unpack(self) -> Iterator[Any]:
         for item in self:
             yield item.value
 
+class BlockValue(DataValue[Sequence[ScriptSymbol]]):
+    optype = Operand.Block
 
-@_data(DataType.Block)
-class BlockValue(DataValue[Sequence['Token']]):
-    _value: tuple
-    def __init__(self, value: Iterable['Token']):
+    def __init__(self, value: Iterable[ScriptSymbol]):
         super().__init__(tuple(value))
 
     def __repr__(self) -> str:
@@ -169,13 +138,10 @@ class BlockValue(DataValue[Sequence['Token']]):
         return self.format()
 
     def format(self) -> str:
-        content = ' '.join(token.text for token in self.value)
+        content = ' '.join(sym.meta.text for sym in self.value)
         return '{ ' + content + ' }'
 
-    def __iter__(self) -> Iterator['Token']:
+    def __iter__(self) -> Iterator[ScriptSymbol]:
         return iter(self.value)
 
-    def __eq__(self, other: DataValue) -> bool:
-        if self.type == other.type:
-            return self._value == other.value
-        return False
+

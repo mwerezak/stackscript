@@ -14,21 +14,8 @@ if TYPE_CHECKING:
     from myscript.parser import Token
 
 
-def _format_bool(b: bool) -> str:
-    return 'true' if b else 'false'
-
-def _format_array(array: MutableSequence['DataValue']) -> str:
-    return '['+ ' '.join(v.format_value() for v in array) + ']'
-
-def _format_block(block: Sequence[Token]) -> str:
-    return '{ '+ ' '.join(t.text for t in block) + ' }'
-
-
-class DataDef(NamedTuple):
-    pass
-
-class DataType(Enum):
-    """Data are things that can be pushed onto the stack."""
+class Operand(Enum):
+    """Each data value has an Operand type that is used to resolve operator overloading."""
     Bool        = auto()
     Number      = auto()
     String      = auto()
@@ -38,58 +25,55 @@ class DataType(Enum):
     def __repr__(self) -> str:
         return f'<{self.__class__.__qualname__}.{self.name}>'
 
-    @property
-    def format(self) -> Callable[[Any], str]:
-        return self.value.format
 
-
-class OperatorDef(NamedTuple):
+class OperatorInfo(NamedTuple):
     pattern: str
 
 class Operator(Enum):
-    Invert  = OperatorDef(r'~')    # bitwise not, array dump
-    Inspect = OperatorDef(r'`')
-    Eval    = OperatorDef(r'!')    # evaluate a block or string and push results onto the stack
-    Rotate  = OperatorDef(r'@')    # move the ith stack element to top
-    Index   = OperatorDef(r'\$')   # copy the ith stack element to top
-    Dup     = OperatorDef(r'\.')   # copy the top element. equivalent to 0$
-    Drop    = OperatorDef(r',')    # remove the top element from the stack
-    Break   = OperatorDef(r';')    # empty the stack (should this even be an operator?)
+    Invert  = OperatorInfo(r'~')    # bitwise not, array dump
+    Inspect = OperatorInfo(r'`')
+    Eval    = OperatorInfo(r'!')    # evaluate a block or string and push results onto the stack
+    Rotate  = OperatorInfo(r'@')    # move the ith stack element to top
+    Index   = OperatorInfo(r'\$')   # copy the ith stack element to top
+    Dup     = OperatorInfo(r'\.')   # copy the top element. equivalent to 0$
+    Drop    = OperatorInfo(r',')    # remove the top element from the stack
+    Break   = OperatorInfo(r';')    # empty the stack (should this even be an operator?)
 
-    Assign  = OperatorDef(r':')
+    Assign  = OperatorInfo(r':')
 
-    Add     = OperatorDef(r'\+(?!\+)')   # add, concat
-    Sub     = OperatorDef(r'-')    # subtract, set diff
-    Mul     = OperatorDef(r'\*(?!\*)')   # mult, block execute times, array repeat
-    Div     = OperatorDef(r'/')    # div, split, split in groups of size, unfold, each
-    Mod     = OperatorDef(r'%')    # mod, map, every ith element, clean split
+    Add     = OperatorInfo(r'\+(?!\+)')   # add, concat
+    Sub     = OperatorInfo(r'-')    # subtract, set diff
+    Mul     = OperatorInfo(r'\*(?!\*)')   # mult, block execute times, array repeat
+    Div     = OperatorInfo(r'/')    # div, split, split in groups of size, unfold, each
+    Mod     = OperatorInfo(r'%')    # mod, map, every ith element, clean split
 
-    Pow     = OperatorDef(r'\*\*')
+    Pow     = OperatorInfo(r'\*\*')
 
-    BitOr   = OperatorDef(r'\|')   # bitwise/setwise or
-    BitAnd  = OperatorDef(r'&')    # bitwise/setwise and
-    BitXor  = OperatorDef(r'\^')   # bitwise/setwise xor
-    LShift  = OperatorDef(r'<<')
-    RShift  = OperatorDef(r'>>')
 
-    Size    = OperatorDef(r'\#')
+    BitOr   = OperatorInfo(r'\|')   # bitwise/setwise or
+    BitAnd  = OperatorInfo(r'&')    # bitwise/setwise and
+    BitXor  = OperatorInfo(r'\^')   # bitwise/setwise xor
+    LShift  = OperatorInfo(r'<<')
+    RShift  = OperatorInfo(r'>>')
 
-    LT      = OperatorDef(r'<(?!<)') # less than, elements less than index
-    LE      = OperatorDef(r'<=')     # less than or equal to
-    GT      = OperatorDef(r'>(?!>)') # greater than, elements greater than or equal to index
-    GE      = OperatorDef(r'>=')     # greater than or equal to
-    Equal   = OperatorDef(r'=')      # equal to, element at index
-    ArrAdd  = OperatorDef(r'\+\+')   # array add/concat
-    ArrSub  = OperatorDef(r'--')     # array remove/diff
+    Size    = OperatorInfo(r'\#')
 
-    Not     = OperatorDef(r'not')
-    And     = OperatorDef(r'and')
-    Or      = OperatorDef(r'or')
-    Xor     = OperatorDef(r'xor')
-    Do      = OperatorDef(r'do')
-    While   = OperatorDef(r'while')
-    Until   = OperatorDef(r'until')
-    If      = OperatorDef(r'if')
+    LT      = OperatorInfo(r'<(?!<)') # less than, elements less than index
+    LE      = OperatorInfo(r'<=')     # less than or equal to
+    GT      = OperatorInfo(r'>(?!>)') # greater than, elements greater than or equal to index
+    GE      = OperatorInfo(r'>=')     # greater than or equal to
+    Equal   = OperatorInfo(r'=')      # equal to, element at index
+    ArrAdd  = OperatorInfo(r'\+\+')   # array add/concat
+    ArrSub  = OperatorInfo(r'--')     # array remove/diff
+
+    Not     = OperatorInfo(r'not')
+    And     = OperatorInfo(r'and')
+    Or      = OperatorInfo(r'or')
+    Xor     = OperatorInfo(r'xor')
+    Do      = OperatorInfo(r'do')
+    While   = OperatorInfo(r'while')
+    Until   = OperatorInfo(r'until')
+    If      = OperatorInfo(r'if')
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__qualname__}.{self.name}>'
