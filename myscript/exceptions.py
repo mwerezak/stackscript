@@ -9,24 +9,18 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Optional
-    from myscript.parser import Token
+    from myscript.parser import SymbolMeta
 
 
 class ScriptError(Exception):
     """Raised when there is a problem with an executing script (not the runtime!)"""
 
-    def __init__(self, message: str, token: Optional[Token] = None):
-        self.token = token
+    def __init__(self, message: str, meta: Optional[SymbolMeta] = None):
+        self.meta = meta
         super().__init__(message)
 
     def __str__(self) -> str:
-        message = [ super().__str__() ]
-        if self.token is not None:
-            message.extend([
-                f"token: {self.token}",
-                f"lineno: {self.token.lineno}", 
-                f"pos: {self.token.lexpos}",
-            ])
+        message = [ super().__str__(), str(self.meta) ]
         return '\n'.join(message)
 
         

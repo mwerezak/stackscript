@@ -7,12 +7,11 @@ from __future__ import annotations
 
 import string
 from enum import Enum, auto
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, NamedTuple, Protocol, runtime_checkable
 
 from ply import lex
 
-from myscript.lang import Operator
+from myscript.opcodes import Operator
 from myscript.exceptions import ScriptError
 
 if TYPE_CHECKING:
@@ -23,10 +22,6 @@ if TYPE_CHECKING:
 
 if TYPE_CHECKING:
     TokenData = Union['DelimiterToken', 'OperatorToken', 'PrimitiveLiteralToken', 'IdentifierToken']
-
-# @runtime_checkable
-# class TokenData(Protocol):
-#     text: str
 
 class Token(NamedTuple):
     data: TokenData
@@ -191,19 +186,23 @@ Lexer.t_Identifier = t_Identifier
 class ScriptSymbol(Protocol):
     meta: SymbolMeta
 
-@dataclass
-class SymbolMeta:
+    def get_type(self) -> SymbolType:
+        ...
+
+class SymbolMeta(NamedTuple):
     text: str
     pos: int
     lineno: int
 
     # if this is part of a opening/closing delimiter pair
-    opening: Optional[SymbolMeta] = None
-    closing: Optional[SymbolMeta] = None
+    start: Optional[SymbolMeta] = None
 
 class Identifier(NamedTuple):
     name: str
     meta: SymbolMeta
+
+    def get_type(self) -> SymbolType:
+        return SymbolType.Identifier
 
 # closely related to but distinct from the set of data types
 class LiteralType(Enum):
@@ -221,15 +220,26 @@ class Literal(NamedTuple):
     value: Any  ## MUST BE IMMUTABLE
     meta: SymbolMeta
 
+    def get_type(self) -> SymbolType:
+        return SymbolType.Identifier
+
 class OperatorSym(NamedTuple):
     operator: Operator
     meta: SymbolMeta
 
-_SYM_TYPES = (
-    Identifier,
-    Literal,
-    OperatorSym,
-)
+    def get_type(self) -> SymbolType:
+        return SymbolType.Identifier
+
+class SymbolType(Enum):
+    Identifier  = Identifier
+    Literal     = Literal
+    Operator    = OperatorSym
+
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__qualname__}.{self.name}>'
+
+    def as_type(self) -> Type[ScriptSymbol]:
+        return self.value
 
 class Parser:
     _delimiters = {
@@ -240,7 +250,7 @@ class Parser:
     _parse_tokens: Mapping[Type[TokenData], Callable[[Iterator[Token], TokenData, SymbolMeta], ScriptSymbol]]
     _parse_primitives: Mapping[PrimitiveLiteral, Callable[[TokenData, SymbolMeta], Literal]]
 
-    def __init__(self):
+    def __init__(self, tokens: Iterable[Token]):
         self._parse_tokens = {
             DelimiterToken  : self._parse_delimiter,
             OperatorToken   : self._parse_operator,
@@ -255,66 +265,65 @@ class Parser:
             PrimitiveLiteral.String  : self._parse_string,
         }
 
-    _tokens: Iterator[Token]
-    def input(self, tokens: Iterable[Token]) -> None:
         self._tokens = iter(tokens)
 
     def get_symbols(self) -> Iterator[ScriptSymbol]:
         for token in self._tokens:
             yield self._parse_token(token)
 
-    def _create_meta(self, token: Token) -> SymbolMeta:
-        return SymbolMeta(
+    # build metadata table that can later be used to create a SymbolMeta instance
+    def _create_metadata(self, token: Token) -> Any:
+        return dict(
             text = token.data.text,
             pos = token.lexpos,
             lineno = token.lineno,
         )
 
     def _parse_token(self, token: Token) -> ScriptSymbol:
-        meta = self._create_meta(token)
+        meta = self._create_metadata(token)
         for toktype, fparse in self._parse_tokens.items():
             if isinstance(token.data, toktype):
                 return fparse(self._tokens, token.data, meta)
         raise NotImplementedError('no method to parse token: ' + repr(token))
 
-    def _parse_operator(self, tokens: Iterator[Token], tokdata: OperatorToken, meta: SymbolMeta) -> OperatorSym:
-        return OperatorSym(tokdata.operator, meta)
+    def _parse_operator(self, tokens: Iterator[Token], tokdata: OperatorToken, meta: Any) -> OperatorSym:
+        return OperatorSym(tokdata.operator, SymbolMeta(**meta))
 
-    def _parse_identifier(self, tokens: Iterator[Token], tokdata: IdentifierToken, meta: SymbolMeta) -> Identifier:
-        return Identifier(tokdata.text, meta)
+    def _parse_identifier(self, tokens: Iterator[Token], tokdata: IdentifierToken, meta: Any) -> Identifier:
+        return Identifier(tokdata.text, SymbolMeta(**meta))
 
-    def _parse_primitive(self, tokens: Iterator[Token], tokdata: PrimitiveToken, meta: SymbolMeta) -> Literal:
+    def _parse_primitive(self, tokens: Iterator[Token], tokdata: PrimitiveToken, meta: Any) -> Literal:
         return self._parse_primitives[tokdata.literal](tokdata, meta)
 
     _bool_values = {
         'true'  : True,
         'false' : False,
     }
-    def _parse_bool(self, tokdata: PrimitiveToken, meta: SymbolMeta) -> Literal:
-        return Literal(LiteralType.Bool, self._bool_values[tokdata.text], meta)
+    def _parse_bool(self, tokdata: PrimitiveToken, meta: Any) -> Literal:
+        return Literal(LiteralType.Bool, self._bool_values[tokdata.text], SymbolMeta(**meta))
 
     # todo HEX, OCT, BIN literals
-    def _parse_int(self, tokdata: PrimitiveToken, meta: SymbolMeta) -> Literal:
-        return Literal(LiteralType.Number, int(tokdata.text), meta)
+    def _parse_int(self, tokdata: PrimitiveToken, meta: Any) -> Literal:
+        return Literal(LiteralType.Number, int(tokdata.text), SymbolMeta(**meta))
 
-    def _parse_float(self, tokdata: PrimitiveToken, meta: SymbolMeta) -> Literal:
-        return Literal(LiteralType.Number, float(tokdata.text), meta)
+    def _parse_float(self, tokdata: PrimitiveToken, meta: Any) -> Literal:
+        return Literal(LiteralType.Number, float(tokdata.text), SymbolMeta(**meta))
 
     _str_delim = ("'", '"')
-    def _parse_string(self, tokdata: PrimitiveToken, meta: SymbolMeta) -> Literal:
+    def _parse_string(self, tokdata: PrimitiveToken, meta: Any) -> Literal:
         text = tokdata.text
         if text[0] != text[-1] or text[0] not in self._str_delim:
-            raise ScriptError('malformed string')
-        return Literal(LiteralType.String, text[1:-1], meta)
+            raise ScriptError('malformed string', SymbolMeta(**meta))
+        return Literal(LiteralType.String, text[1:-1], SymbolMeta(**meta))
 
     _structured_literals = {
         Delimiter.StartArray : LiteralType.Array,
         Delimiter.StartBlock : LiteralType.Block,
     }
-    def _parse_delimiter(self, tokens: Iterator[Token], tokdata: DelimiterToken, meta: SymbolMeta) -> ScriptSymbol:
+    def _parse_delimiter(self, tokens: Iterator[Token], tokdata: DelimiterToken, meta: Any) -> ScriptSymbol:
         end_delim = self._delimiters.get(tokdata.delim)
         if end_delim is None:
-            raise ScriptError(f"found closing delimiter '{tokdata.delim}' without matching start")
+            raise ScriptError(f"found closing delimiter '{tokdata.delim}' without matching start", meta)
 
         contents = []
         for token in tokens:
@@ -322,9 +331,9 @@ class Parser:
                 contents.append(self._parse_token(token))
                 continue
 
-            closing_meta = self._create_meta(token)
-            closing_meta.opening = meta
-            meta.closing = closing_meta
+            new_meta = self._create_metadata(token)
+            new_meta['start'] = SymbolMeta(**meta)
+            meta = SymbolMeta(**new_meta)
 
             ## for now, all delimiter pairs result in a literal
             literal = self._structured_literals.get(tokdata.delim)
@@ -332,7 +341,7 @@ class Parser:
                 return Literal(literal, tuple(contents), meta)
             raise NotImplementedError('no method to parse token: ' + repr(token))
 
-        raise ScriptError(f"could not find closing delimiter for '{tokdata.delim}'")
+        raise ScriptError(f"could not find closing delimiter for '{tokdata.delim}'", SymbolMeta(**meta))
 
 
 if __name__ == '__main__':
@@ -350,13 +359,13 @@ if __name__ == '__main__':
             print(test)
             lexer = Lexer()
             lexer.input(test)
-            tokens = list(lexer.get_tokens())
+            _tokens = list(lexer.get_tokens())
             # for token in tokens:
             #     print(token)
 
-            parser = Parser()
-            parser.input(tokens)
-            for sym in parser.get_symbols():
+            parser = Parser(_tokens)
+            syms = list(parser.get_symbols())
+            for sym in syms:
                 print(sym)
         except:
             traceback.print_exc()
