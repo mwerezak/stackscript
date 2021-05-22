@@ -10,7 +10,7 @@ from functools import wraps
 from collections import defaultdict
 from typing import TYPE_CHECKING, NamedTuple
 
-from myscript.lang import Operator, DataType
+from myscript.opcodes import Operator, DataType
 from myscript.values import DataValue, BoolValue, NumberValue, StringValue, ArrayValue, BlockValue
 from myscript.exceptions import ScriptError
 
