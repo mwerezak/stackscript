@@ -14,7 +14,6 @@ if TYPE_CHECKING:
 
 class Operand(Enum):
     """Each data value has an Operand type that is used to resolve operator overloading."""
-    Any         = auto()
     Bool        = auto()
     Number      = auto()
     String      = auto()

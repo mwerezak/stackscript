@@ -24,9 +24,9 @@ if TYPE_CHECKING:
     OperatorFunc = Callable[[ContextFrame, ...], Iterator[DataValue]]
 
 
-## TODO simplify this to operator -> signature -> OperatorData
-# map operator -> arity -> signature -> operator data
-OP_REGISTRY: MutableMapping[Operator, MutableSequence[MutableMapping[Signature, OperatorData]]] = defaultdict(list)
+# map operator -> signature -> operator data
+OP_REGISTRY: MutableMapping[Operator, MutableMapping[Signature, OperatorData]] = defaultdict(dict)
+OP_ARITY: MutableMapping[Operator, int] = defaultdict(int)
 
 class OperandError(Exception):
     def __init__(self, message: str, *operands: DataValue):
@@ -41,44 +41,45 @@ class OperatorData(NamedTuple):
 
 
 def apply_operator(ctx: ContextFrame, op: Operator) -> None:
-    opdata = _search_registery(op, ctx.iter_stack())
+    opdata = _search_registery(op, ctx)
 
     args = [ ctx.pop_stack() for i in range(len(opdata.signature)) ]
-    args.reverse()
 
-    for value in opdata.func(ctx, *args):
+    for value in opdata.func(ctx, *reversed(args)):
         if not isinstance(value, DataValue):
             raise TypeError(f"invalid object type yielded from operator {opdata}: {type(value)}", value)
         ctx.push_stack(value)
 
-def _search_registery(op: Operator, peek: Iterator[DataValue]) -> OperatorData:
+def _search_registery(op: Operator, ctx: ContextFrame) -> OperatorData:
     registry = OP_REGISTRY[op]
+    arity = OP_ARITY[op]
+
+    # nargs == 0
+    opdata = registry.get(())
+    if opdata is not None:
+        return opdata
 
     args = []
-    for nargs, subregistry in enumerate(registry):
-        try:
-            while len(args) < nargs:
-                args.insert(0, next(peek))
-        except StopIteration:
-            break
+    for nargs, next_arg in enumerate(ctx.iter_stack()):
+        args.append(next_arg)
+        signature = tuple(value.optype for value in reversed(args))
 
-        sig = tuple(value.optype for value in args)
-        if sig in subregistry:
-            return subregistry[sig]
+        opdata = registry.get(signature)
+        if opdata is not None:
+            return opdata
 
-    raise OperandError(f"Invalid operands for operator '{op.name}'", *args)
+        if nargs >= arity:
+            raise OperandError(f"Invalid operands for operator '{op.name}'", *args)
 
 def _register_operator(opdata: OperatorData) -> None:
     registry = OP_REGISTRY[opdata.op]
-    nargs = len(opdata.signature)
-
-    while len(registry) <= nargs:
-        registry.append({})
 
     signature = opdata.signature
-    if signature in registry[nargs]:
+    if signature in registry:
         raise ValueError(f"signature {signature} is already registered for {opdata.op}")
-    registry[nargs][signature] = opdata
+
+    registry[signature] = opdata
+    OP_ARITY[opdata.op] = max(OP_ARITY[opdata.op], len(signature))
 
 def operator_func(op: Operator, *signature: Operand):
     def decorator(func: OperatorFunc):
@@ -489,8 +490,8 @@ def operator_not(ctx, a):
 if __name__ == '__main__':
     from myscript.runtime import ScriptRuntime
 
-    # from pprint import pprint
-    # pprint(OP_REGISTRY)
+    from pprint import pprint
+    pprint(OP_REGISTRY)
 
     tests = [
         """ [ 3 2]  [ 1 'b' { 'c' 'd' } ] """,
