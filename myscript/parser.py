@@ -85,7 +85,7 @@ class Lexer:
     }
 
     tokens = (
-        ## Specials
+        ## Delimiters
         *(delim.name for delim in Delimiter),
 
         ## Literals

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from myscript.parser import SymbolType, LiteralType, Lexer, Parser
 from myscript.exceptions import ScriptError
-from myscript.opimpl import apply_operator, OperandError
+from myscript.opfuncs import apply_operator, OperandError
 
 from myscript.values import (
     BoolValue, IntValue, FloatValue, StringValue, ArrayValue, BlockValue
