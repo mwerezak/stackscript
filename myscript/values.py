@@ -9,11 +9,12 @@ from functools import total_ordering
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, TypeVar, Generic
 
+from myscript.parser import LiteralType
 from myscript.opcodes import Operand
 
 if TYPE_CHECKING:
-    from typing import Any, Union, Iterator, Iterable, Sequence, MutableSequence
-    from myscript.parser import ScriptSymbol
+    from typing import Any, Callable, Iterator, Iterable, Sequence, MutableSequence, Mapping
+    from myscript.parser import ScriptSymbol, Literal
 
 
 _VT = TypeVar('_VT')
@@ -63,7 +64,7 @@ class BoolValue(DataValue[bool]):
         return self._value == bool(other)
 
 @total_ordering
-class IntegerValue(DataValue[int]):
+class IntValue(DataValue[int]):
     optype = Operand.Number
 
     def format(self) -> str:
@@ -145,3 +146,25 @@ class BlockValue(DataValue[Sequence[ScriptSymbol]]):
         return iter(self.value)
 
 
+# for DataValue types with a closed set of values - always reuse the same instances
+_TRUE = BoolValue(True)
+_FALSE = BoolValue(False)
+
+def _eval_bool(literal: Literal) -> BoolValue:
+    return _TRUE if literal.value else _FALSE
+
+
+_LITERALS: Mapping[LiteralType, Callable[[Any], DataValue]] = {
+    LiteralType.Bool    : _eval_bool,
+    LiteralType.Integer : IntValue,
+    LiteralType.Float   : FloatValue,
+    LiteralType.String  : StringValue,
+    LiteralType.Array   : ArrayValue,
+    LiteralType.Block   : BlockValue,
+}
+
+def eval_literal(literal: Literal) -> DataValue:
+    ctor = _LITERALS.get(literal.type)
+    if ctor is None:
+        raise NotImplementedError('could not evaluate literal', literal)
+    return ctor(literal.value)

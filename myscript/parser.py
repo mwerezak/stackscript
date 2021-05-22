@@ -206,11 +206,12 @@ class Identifier(NamedTuple):
 
 # closely related to but distinct from the set of data types
 class LiteralType(Enum):
-    Bool   = auto()
-    Number = auto()
-    String = auto()
-    Array  = auto()
-    Block  = auto()
+    Bool    = auto()
+    Integer = auto()
+    Float   = auto()
+    String  = auto()
+    Array   = auto()
+    Block   = auto()
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__qualname__}.{self.name}>'
@@ -304,10 +305,10 @@ class Parser:
 
     # todo HEX, OCT, BIN literals
     def _parse_int(self, tokdata: PrimitiveToken, meta: Any) -> Literal:
-        return Literal(LiteralType.Number, int(tokdata.text), SymbolMeta(**meta))
+        return Literal(LiteralType.Integer, int(tokdata.text), SymbolMeta(**meta))
 
     def _parse_float(self, tokdata: PrimitiveToken, meta: Any) -> Literal:
-        return Literal(LiteralType.Number, float(tokdata.text), SymbolMeta(**meta))
+        return Literal(LiteralType.Float, float(tokdata.text), SymbolMeta(**meta))
 
     _str_delim = ("'", '"')
     def _parse_string(self, tokdata: PrimitiveToken, meta: Any) -> Literal:
