@@ -191,10 +191,15 @@ Lexer.t_Identifier = t_Identifier
 class ScriptSymbol(Protocol):
     meta: SymbolMeta
 
-class SymbolMeta(NamedTuple):
+@dataclass
+class SymbolMeta:
     text: str
+    pos: int
     lineno: int
-    lexpos: int
+
+    # if this is part of a opening/closing delimiter pair
+    opening: Optional[SymbolMeta] = None
+    closing: Optional[SymbolMeta] = None
 
 class Identifier(NamedTuple):
     name: str
@@ -207,6 +212,9 @@ class LiteralType(Enum):
     String = auto()
     Array  = auto()
     Block  = auto()
+
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__qualname__}.{self.name}>'
 
 class Literal(NamedTuple):
     type: LiteralType
@@ -229,9 +237,8 @@ class Parser:
         Delimiter.StartArray : Delimiter.EndArray,
     }
 
-    _parse_tokens: Mapping[Type[TokenData], Callable[[TokenData, SymbolMeta], ScriptSymbol]]
-
-    _parse_primitive: Mapping[PrimitiveLiteral, Callable[[PrimitiveToken, SymbolMeta], Literal]]
+    _parse_tokens: Mapping[Type[TokenData], Callable[[Iterator[Token], TokenData, SymbolMeta], ScriptSymbol]]
+    _parse_primitives: Mapping[PrimitiveLiteral, Callable[[TokenData, SymbolMeta], Literal]]
 
     def __init__(self):
         self._parse_tokens = {
@@ -241,7 +248,7 @@ class Parser:
             IdentifierToken : self._parse_identifier,
         }
 
-        self._parse_primitive = {
+        self._parse_primitives = {
             PrimitiveLiteral.Bool    : self._parse_bool,
             PrimitiveLiteral.Float   : self._parse_float,
             PrimitiveLiteral.Integer : self._parse_int,
@@ -252,139 +259,104 @@ class Parser:
     def input(self, tokens: Iterable[Token]) -> None:
         self._tokens = iter(tokens)
 
-    def parse(self) -> Iterator[ScriptSymbol]:
+    def get_symbols(self) -> Iterator[ScriptSymbol]:
         for token in self._tokens:
-            meta = SymbolMeta(
-                text = token.data.text,
-                lineno = token.lineno,
-                lexpos = token.lexpos,
-            )
+            yield self._parse_token(token)
 
-            for toktype, fparse in self._parse_tokens.items():
-                if isinstance(token, toktype):
-                    yield fparse(token, meta)
-                    break
-            raise NotImplementedError('no method to parse token: ' + repr(token))
+    def _create_meta(self, token: Token) -> SymbolMeta:
+        return SymbolMeta(
+            text = token.data.text,
+            pos = token.lexpos,
+            lineno = token.lineno,
+        )
 
-    def _parse_delimiter(self, token: DelimiterToken, meta: SymbolMeta) -> Delimiter:
-        pass
+    def _parse_token(self, token: Token) -> ScriptSymbol:
+        meta = self._create_meta(token)
+        for toktype, fparse in self._parse_tokens.items():
+            if isinstance(token.data, toktype):
+                return fparse(self._tokens, token.data, meta)
+        raise NotImplementedError('no method to parse token: ' + repr(token))
 
-    def _parse_operator(self, token: OperatorToken, meta: SymbolMeta) -> OperatorSym:
-        return OperatorSym(token.operator, meta)
+    def _parse_operator(self, tokens: Iterator[Token], tokdata: OperatorToken, meta: SymbolMeta) -> OperatorSym:
+        return OperatorSym(tokdata.operator, meta)
 
-    def _parse_primitive(self, token: PrimitiveToken, meta: SymbolMeta) -> Literal:
-        return self._parse_primitive[token.literal](token, meta)
+    def _parse_identifier(self, tokens: Iterator[Token], tokdata: IdentifierToken, meta: SymbolMeta) -> Identifier:
+        return Identifier(tokdata.text, meta)
 
-    def _parse_identifier(self, token: IdentifierToken, meta: SymbolMeta) -> Identifier:
-        return Identifier(token.text, meta)
+    def _parse_primitive(self, tokens: Iterator[Token], tokdata: PrimitiveToken, meta: SymbolMeta) -> Literal:
+        return self._parse_primitives[tokdata.literal](tokdata, meta)
 
     _bool_values = {
         'true'  : True,
         'false' : False,
     }
-    def _parse_bool(self, token: PrimitiveToken, meta: SymbolMeta) -> Literal:
-        return Literal(LiteralType.Bool, self._bool_values[token.text], meta)
+    def _parse_bool(self, tokdata: PrimitiveToken, meta: SymbolMeta) -> Literal:
+        return Literal(LiteralType.Bool, self._bool_values[tokdata.text], meta)
 
     # todo HEX, OCT, BIN literals
-    def _parse_int(self, token: PrimitiveToken, meta: SymbolMeta) -> Literal:
-        return Literal(LiteralType.Number, int(token.text), meta)
+    def _parse_int(self, tokdata: PrimitiveToken, meta: SymbolMeta) -> Literal:
+        return Literal(LiteralType.Number, int(tokdata.text), meta)
 
-    def _parse_float(self, token: PrimitiveToken, meta: SymbolMeta) -> Literal:
-        return Literal(LiteralType.Number, float(token.text), meta)
+    def _parse_float(self, tokdata: PrimitiveToken, meta: SymbolMeta) -> Literal:
+        return Literal(LiteralType.Number, float(tokdata.text), meta)
 
     _str_delim = ("'", '"')
-    def _parse_string(self, token: PrimitiveToken, meta: SymbolMeta) -> Literal:
-        if token.text[0] != token.text[-1] or token.text[0] not in self._str_delim:
+    def _parse_string(self, tokdata: PrimitiveToken, meta: SymbolMeta) -> Literal:
+        text = tokdata.text
+        if text[0] != text[-1] or text[0] not in self._str_delim:
             raise ScriptError('malformed string')
-        return Literal(LiteralType.String, token.text[1:-1], meta)
+        return Literal(LiteralType.String, text[1:-1], meta)
 
+    _structured_literals = {
+        Delimiter.StartArray : LiteralType.Array,
+        Delimiter.StartBlock : LiteralType.Block,
+    }
+    def _parse_delimiter(self, tokens: Iterator[Token], tokdata: DelimiterToken, meta: SymbolMeta) -> ScriptSymbol:
+        end_delim = self._delimiters.get(tokdata.delim)
+        if end_delim is None:
+            raise ScriptError(f"found closing delimiter '{tokdata.delim}' without matching start")
 
-#         tokens = self.lexer.get_tokens()
-#         while (token := self._get_next(tokens)) is not None:
-#             if token.is_special():
-#                 literal = self._parse_recursive(tokens, token.item)
-#                 token = Token(item=literal, text=token.text, lineno=token.lineno, lexpos=token.lexpos)
-#             yield token        pass
+        contents = []
+        for token in tokens:
+            if not (isinstance(token.data, DelimiterToken) and token.data.delim == end_delim):
+                contents.append(self._parse_token(token))
+                continue
 
-    def _parse_delimiter_recursive(self):
-        pass
+            closing_meta = self._create_meta(token)
+            closing_meta.opening = meta
+            meta.closing = closing_meta
 
-print(Parser._parse_tokens)
+            ## for now, all delimiter pairs result in a literal
+            literal = self._structured_literals.get(tokdata.delim)
+            if literal is not None:
+                return Literal(literal, tuple(contents), meta)
+            raise NotImplementedError('no method to parse token: ' + repr(token))
 
-# class Parser:
-#     _matching = {
-#         SpecialToken.StartBlock : SpecialToken.EndBlock,
-#         SpecialToken.StartArray : SpecialToken.EndArray,
-#     }
-#     _literal = {
-#         SpecialToken.StartBlock : DataType.Block,
-#         SpecialToken.StartArray : DataType.Array,
-#     }
-#
-#     def __init__(self, lexer: Optional[Lexer] = None):
-#         self.lexer = lexer or Lexer()
-#
-#     def clone(self) -> Parser:
-#         return Parser(self.lexer.clone())
-#
-#     def input(self, text: str) -> None:
-#         self.lexer.input(text)
-#
-#     @staticmethod
-#     def _get_next(tokens: Iterable[Token]) -> Optional[Token]:
-#         try:
-#             return next(tokens)
-#         except StopIteration:
-#             return None
-#
-#     def get_tokens(self) -> Iterator[Token]:
-#         tokens = self.lexer.get_tokens()
-#         while (token := self._get_next(tokens)) is not None:
-#             if token.is_special():
-#                 literal = self._parse_recursive(tokens, token.item)
-#                 token = Token(item=literal, text=token.text, lineno=token.lineno, lexpos=token.lexpos)
-#             yield token
-#
-#     # parse a nested structure down to a single block or array literal token
-#     def _parse_recursive(self, tokens: Iteratable[Token], parse_type: SpecialToken) -> Literal:
-#         matching_end = self._matching[parse_type]
-#
-#         content = []
-#         while True:
-#             token = self._get_next(tokens)
-#             if token is None:
-#                 raise ScriptError(f"could not find matching {matching_end}")
-#
-#             if token.is_special(matching_end):
-#                 return Literal(self._literal[parse_type], tuple(content))
-#
-#             elif token.is_special():
-#                 if token.item not in self._matching:
-#                     raise ScriptError('mismatched', token)
-#                 literal = self._parse_recursive(tokens, token.item)
-#                 token = Token(item=literal, text=token.text, lineno=token.lineno, lexpos=token.lexpos)
-#
-#             content.append(token)
-
+        raise ScriptError(f"could not find closing delimiter for '{tokdata.delim}'")
 
 
 if __name__ == '__main__':
+    import traceback
+
     tests = [
-        "'dsds' +2.4 576 { true} foobar xor \"false\" '?' + + while [  + -.333 -] if ** ",
-        "1 1+ > > > < < < not ! ~ ",
-        # "1 1+ >> > [ < <<  { not ! ] ~ }",
+        "'dsds' +2.4 576 { true} foobar xor \"false\" '?' ++ while [  + -.333 -] if ** ",
+        "1 1+ > > > <<< not ! ~ ",
+        "1 1+ >> > [ < <<  { not ! ] ~ }",
         "1 [1+ { >> > < } [< <] not ! ~ ",
     ]
 
     for test in tests:
-        print(test)
-        lexer = Lexer()
-        lexer.input(test)
-        tokens = list(lexer.get_tokens())
-        for token in tokens:
-            print(token)
+        try:
+            print(test)
+            lexer = Lexer()
+            lexer.input(test)
+            tokens = list(lexer.get_tokens())
+            # for token in tokens:
+            #     print(token)
 
-        # parser = Parser(lexer)
-        # parser.input(test)
-        # for tok in parser.get_tokens():
-        #     print(repr(tok), repr(str(tok)))
+            parser = Parser()
+            parser.input(tokens)
+            for sym in parser.get_symbols():
+                print(sym)
+        except:
+            traceback.print_exc()
