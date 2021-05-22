@@ -44,7 +44,7 @@ class DataType(Enum):
 
 
 class OperatorDef(NamedTuple):
-    token: str
+    pattern: str
 
 class Operator(Enum):
     Invert  = OperatorDef(r'~')    # bitwise not, array dump
@@ -95,7 +95,7 @@ class Operator(Enum):
         return f'<{self.__class__.__qualname__}.{self.name}>'
 
     @property
-    def token(self) -> str:
-        return self.value.token
+    def pattern(self) -> str:
+        return self.value.pattern
 
 
