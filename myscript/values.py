@@ -27,8 +27,11 @@ class DataValue(ABC, Generic[_VT]):
 
     @property
     @abstractmethod
-    def optype(self) -> Operand:
-        ...
+    def optype(self) -> Operand: ...
+
+    @property
+    @abstractmethod
+    def name(self) -> str: ...
 
     @property
     def value(self) -> _VT:
@@ -37,10 +40,9 @@ class DataValue(ABC, Generic[_VT]):
     @abstractmethod
     def format(self) -> str:
         """Format the DataValue in a way that produces valid script code which evalutes to the value."""
-        ...
 
     def __repr__(self) -> str:
-        return f'{self.__class__.__name__}({self.value!r})'
+        return f'<{self.__class__.__name__}({self.value!r})>'
 
     def __str__(self) -> str:
         return self.format()
@@ -51,11 +53,11 @@ class DataValue(ABC, Generic[_VT]):
     def __eq__(self, other: DataValue) -> bool:
         return self._value == other.value
 
-
 class BoolValue(DataValue[bool]):
     TRUE: ClassVar[BoolValue]
     FALSE: ClassVar[BoolValue]
 
+    name = 'bool'
     optype = Operand.Bool
 
     def format(self) -> str:
@@ -70,8 +72,10 @@ class BoolValue(DataValue[bool]):
 BoolValue.TRUE  = BoolValue(True)
 BoolValue.FALSE = BoolValue(False)
 
+
 @total_ordering
 class IntValue(DataValue[int]):
+    name = 'int'
     optype = Operand.Number
 
     def format(self) -> str:
@@ -82,6 +86,7 @@ class IntValue(DataValue[int]):
 
 @total_ordering
 class FloatValue(DataValue[float]):
+    name = 'float'
     optype = Operand.Number
 
     def format(self) -> str:
@@ -89,7 +94,6 @@ class FloatValue(DataValue[float]):
 
     def __lt__(self, other: DataValue) -> bool:
         return self._value < other.value
-
 
 @overload
 def NumberValue(value: int) -> IntValue: ...
@@ -103,7 +107,9 @@ def NumberValue(value):
         return IntValue(value)
     return FloatValue(value)
 
+
 class StringValue(DataValue[str]):
+    name = 'string'
     optype = Operand.String
 
     def format(self) -> str:
@@ -117,6 +123,7 @@ class StringValue(DataValue[str]):
             yield StringValue(ch)
 
 class ArrayValue(DataValue[MutableSequence[DataValue]]):
+    name = 'array'
     optype = Operand.Array
 
     def __init__(self, value: Iterable[DataValue]):
@@ -146,16 +153,11 @@ class ArrayValue(DataValue[MutableSequence[DataValue]]):
             yield item.value
 
 class BlockValue(DataValue[Sequence[ScriptSymbol]]):
+    name = 'block'
     optype = Operand.Block
 
     def __init__(self, value: Iterable[ScriptSymbol]):
         super().__init__(tuple(value))
-
-    def __repr__(self) -> str:
-        return f'{self.__class__.__qualname__}({self.value!r})'
-
-    def __str__(self) -> str:
-        return self.format()
 
     def format(self) -> str:
         content = ' '.join(sym.meta.text for sym in self.value)

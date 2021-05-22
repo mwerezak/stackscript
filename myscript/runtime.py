@@ -57,10 +57,15 @@ class ContextFrame:
         for sym in prog:
             if sym.get_type() == SymbolType.Operator:
                 sym: OperatorSym
+                error = None
                 try:
                     apply_operator(self, sym.operator)
                 except OperandError as err:
-                    message = ' '.join(str(o) for o in err.args)
+                    error = err
+
+                if error is not None:
+                    operands = ', '.join(value.name for value in error.operands)
+                    message = f"{error.message}: {operands}"
                     raise ScriptError(message, sym.meta)
 
             else:

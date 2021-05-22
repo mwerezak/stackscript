@@ -29,7 +29,9 @@ if TYPE_CHECKING:
 OP_REGISTRY: MutableMapping[Operator, MutableSequence[MutableMapping[Signature, OperatorData]]] = defaultdict(list)
 
 class OperandError(Exception):
-    pass
+    def __init__(self, message: str, *operands: DataValue):
+        self.message = message
+        self.operands = operands
 
 ## TODO better name
 class OperatorData(NamedTuple):
@@ -64,14 +66,7 @@ def _search_registery(op: Operator, peek: Iterator[DataValue]) -> OperatorData:
         if sig in subregistry:
             return subregistry[sig]
 
-    message = "Invalid operands for operator '{op.name}':\n"
-    if len(args):
-        args_msg = ' '.join(data.format() for data in args)
-        types_msg = ', '.join(data.optype.name for data in args)
-        message += f"{{{types_msg}}}: {args_msg}"
-    else:
-        message += "[]"
-    raise OperandError(message)
+    raise OperandError(f"Invalid operands for operator '{op.name}'", *args)
 
 def _register_operator(opdata: OperatorData) -> None:
     registry = OP_REGISTRY[opdata.op]
@@ -123,14 +118,16 @@ class _ReorderFunc(NamedTuple):
 ###### Invert
 
 # "dump" the array onto the stack
-@operator_func(Operator.Invert, Operand.Array)
-def operator_invert(ctx, o):
-    yield from o.value 
+# @operator_func(Operator.Invert, Operand.Array)
+# def operator_invert(ctx, o):
+#     yield from o.value
 
 # bitwise not
 @operator_func(Operator.Invert, Operand.Number)
-def operator_invert(ctx, x):
-    yield NumberValue(~x.value)
+def operator_invert(ctx, n):
+    if not isinstance(n, IntValue):
+        raise OperandError('unsupported operand type', n)
+    yield IntValue(~n.value)
 
 ###### Inspect
 
@@ -143,43 +140,43 @@ def operator_inspect(ctx, o):
     yield StringValue(o.format())
 
 
-###### Eval
+###### Invoke
 
 # evaluate a block in its own nested context
-@operator_func(Operator.Eval, Operand.Block)
-def operator_eval(ctx, block):
-    sub_ctx = ctx.create_child()
-    sub_ctx.exec(block)
-    yield from sub_ctx.iter_stack_result()
+# @operator_func(Operator.Invoke, Operand.Block)
+# def operator_invoke(ctx, block):
+#     sub_ctx = ctx.create_child()
+#     sub_ctx.exec(block)
+#     yield from sub_ctx.iter_stack_result()
 
 # evaluate a string directly in the current context
-@operator_func(Operator.Eval, Operand.String)
-def operator_eval(ctx, text):
-    ctx.execs(text.value)
-    return ()
+# @operator_func(Operator.Invoke, Operand.String)
+# def operator_invoke(ctx, text):
+#     ctx.execs(text.value)
+#     return ()
 
-@operator_func(Operator.Eval, Operand.Number)
-def operator_eval(ctx, block):
-    sub_ctx = ctx.create_child()
-    sub_ctx.exec(block)
-    yield from sub_ctx.iter_stack_result()
+# @operator_func(Operator.Invoke, Operand.Number)
+# def operator_invoke(ctx, block):
+#     sub_ctx = ctx.create_child()
+#     sub_ctx.exec(block)
+#     yield from sub_ctx.iter_stack_result()
 
 ###### Rotate
 
 # move the ith stack element to top
-@operator_func(Operator.Rotate, Operand.Number)
-def operator_rotate(ctx, index):
-    item = ctx.peek_stack(index.value)
-    ctx.remove_stack(index.value)
-    yield item
+# @operator_func(Operator.Rotate, Operand.Number)
+# def operator_rotate(ctx, index):
+#     item = ctx.peek_stack(index.value)
+#     ctx.remove_stack(index.value)
+#     yield item
 
 
 ###### Index
 
 # copy the ith stack element to top
-@operator_func(Operator.Index, Operand.Number)
-def operator_index(ctx, index):
-    yield ctx.peek_stack(index.value)
+# @operator_func(Operator.Index, Operand.Number)
+# def operator_index(ctx, index):
+#     yield ctx.peek_stack(index.value)
 
 
 ###### Dup
@@ -205,6 +202,10 @@ def operator_break(ctx):
     ctx.clear_stack()
     return ()
 
+###### Assignment
+
+## TODO
+
 
 ###### Add
 
@@ -213,24 +214,6 @@ def operator_break(ctx):
 def operator_add(ctx, a, b):
     a.value.extend(b.value)
     yield a
-
-# append item to end of array
-@operator_func(Operator.Add, Operand.Array, Operand.Block)
-@operator_func(Operator.Add, Operand.Array, Operand.String)
-@operator_func(Operator.Add, Operand.Array, Operand.Number)
-@operator_func(Operator.Add, Operand.Array, Operand.Bool)
-def operator_add(ctx, array, item):
-    array.value.append(item)
-    yield array
-
-# insert item at beginning of array
-@operator_func(Operator.Add, Operand.Block, Operand.Array)
-@operator_func(Operator.Add, Operand.String, Operand.Array)
-@operator_func(Operator.Add, Operand.Number, Operand.Array)
-@operator_func(Operator.Add, Operand.Bool, Operand.Array)
-def operator_add(ctx, item, array):
-    array.value.insert(0, item)
-    yield array
 
 # concatenate strings
 @operator_func(Operator.Add, Operand.String, Operand.String)
@@ -345,14 +328,6 @@ def operator_pow(ctx, a, b):
     yield NumberValue(a.value ** b.value)
 
 
-###### Size
-
-@operator_func(Operator.Size, Operand.Array)
-@operator_func(Operator.Size, Operand.String)
-def operator_size(ctx, item):
-    yield NumberValue(len(item))
-
-
 ###### Bitwise Or/And/Xor
 
 # setwise or (union)
@@ -362,22 +337,12 @@ def operator_bitor(ctx, a, b):
     union.update(b)
     yield ArrayValue(union)
 
-# bitwise or
-@operator_func(Operator.BitOr, Operand.Number, Operand.Number)
-def operator_bitor(ctx, a, b):
-    yield NumberValue(a.value | b.value)
-
 # setwise and (intersection)
 @operator_func(Operator.BitAnd, Operand.Array, Operand.Array)
 def operator_bitand(ctx, a, b):
     intersect = set(a)
     intersect.intersection_update(b)
     yield ArrayValue(intersect)
-
-# bitwise and
-@operator_func(Operator.BitAnd, Operand.Number, Operand.Number)
-def operator_bitand(ctx, a, b):
-    yield NumberValue(a.value & b.value)
 
 # setwise xor (symmetric difference)
 @operator_func(Operator.BitXor, Operand.Array, Operand.Array)
@@ -389,7 +354,37 @@ def operator_bitxor(ctx, a, b):
 # bitwise and
 @operator_func(Operator.BitXor, Operand.Number, Operand.Number)
 def operator_bitxor(ctx, a, b):
-    yield NumberValue(a.value ^ b.value)
+    if not isinstance(a, IntValue) or not isinstance(b, IntValue):
+        raise OperandError("unsupported operand type")
+    yield IntValue(a.value ^ b.value)
+
+# bitwise or
+@operator_func(Operator.BitOr, Operand.Number, Operand.Number)
+def operator_bitor(ctx, a, b):
+    if not isinstance(a, IntValue) or not isinstance(b, IntValue):
+        raise OperandError("unsupported operand type")
+    yield IntValue(a.value | b.value)
+
+# bitwise and
+@operator_func(Operator.BitAnd, Operand.Number, Operand.Number)
+def operator_bitand(ctx, a, b):
+    if not isinstance(a, IntValue) or not isinstance(b, IntValue):
+        raise OperandError("unsupported operand type")
+    yield IntValue(a.value & b.value)
+
+# left shift
+@operator_func(Operator.LShift, Operand.Number, Operand.Number)
+def operator_lshift(ctx, a, shift):
+    if not isinstance(a, IntValue) or not isinstance(shift, IntValue):
+        raise OperandError("unsupported operand type")
+    yield IntValue(a.value << shift.value)
+
+# right shift
+@operator_func(Operator.RShift, Operand.Number, Operand.Number)
+def operator_rshift(ctx, a, shift):
+    if not isinstance(a, IntValue) or not isinstance(shift, IntValue):
+        raise OperandError("unsupported operand type")
+    yield IntValue(a.value >> shift.value)
 
 
 ###### Logical Comparison
@@ -412,22 +407,84 @@ def operator_ge(ctx, a, b):
 
 ###### Equality
 
-@operator_func(Operator.Equal, Operand.Array, Operand.Array)
+@operator_func(Operator.Equal, Operand.Array,  Operand.Array)
 @operator_func(Operator.Equal, Operand.String, Operand.String)
-@operator_permute(Operator.Equal, Operand.String, Operand.Number)
-@operator_permute(Operator.Equal, Operand.String, Operand.Bool)
-@operator_permute(Operator.Equal, Operand.Number, Operand.Bool)
-@operator_func(Operator.Equal, Operand.Bool, Operand.Bool)
+@operator_func(Operator.Equal, Operand.Bool,   Operand.Bool)
+@operator_permute(Operator.Equal, Operand.Bool, Operand.Block)
+@operator_permute(Operator.Equal, Operand.Bool, Operand.Array)
+@operator_permute(Operator.Equal, Operand.Bool, Operand.String)
+@operator_permute(Operator.Equal, Operand.Bool, Operand.Number)
 def operator_equal(ctx, a, b):
     yield BoolValue(a == b)
 
 @operator_func(Operator.Equal, Operand.Number, Operand.Number)
 def operator_equal(ctx, a, b):
-    if isinstance(a.value, int) and isinstance(b.value, int):
+    if isinstance(a, IntValue) and isinstance(b, IntValue):
         yield BoolValue(a.value == b.value)
     else:
         yield BoolValue( abs(a.value - b.value) < 10**-9 )
 
+
+###### Array Append
+
+# append item to end of array
+@operator_func(Operator.Append, Operand.Array, Operand.Block)
+@operator_func(Operator.Append, Operand.Array, Operand.String)
+@operator_func(Operator.Append, Operand.Array, Operand.Number)
+@operator_func(Operator.Append, Operand.Array, Operand.Bool)
+def operator_append(ctx, array, item):
+    array.value.append(item)
+    yield array
+
+# insert item at beginning of array
+@operator_func(Operator.Append, Operand.Block,  Operand.Array)
+@operator_func(Operator.Append, Operand.String, Operand.Array)
+@operator_func(Operator.Append, Operand.Number, Operand.Array)
+@operator_func(Operator.Append, Operand.Bool,   Operand.Array)
+def operator_append(ctx, item, array):
+    array.value.insert(0, item)
+    yield array
+
+###### Array Decons/Pop
+
+@operator_func(Operator.Decons, Operand.Array)
+def operator_decons(ctx, array):
+    item = array.value.pop()
+    yield array
+    yield item
+
+@operator_func(Operator.Decons, Operand.String)
+def operator_decons(ctx, string):
+    yield StringValue(string.value[:-1])
+    yield StringValue(string.value[-1])
+
+###### Size
+
+@operator_func(Operator.Size, Operand.Array)
+@operator_func(Operator.Size, Operand.String)
+def operator_size(ctx, seq):
+    yield IntValue(len(seq))
+
+
+###### Logical Not
+
+@operator_func(Operator.Not, Operand.Block)
+@operator_func(Operator.Not, Operand.Array)
+@operator_func(Operator.Not, Operand.String)
+@operator_func(Operator.Not, Operand.Number)
+@operator_func(Operator.Not, Operand.Bool)
+def operator_not(ctx, a):
+    yield not bool(a)
+
+###### Logical And
+
+# @operator_func(Operator.Not, Operand.Block)
+# @operator_func(Operator.Not, Operand.Array)
+# @operator_func(Operator.Not, Operand.String)
+# @operator_func(Operator.Not, Operand.Number)
+# @operator_func(Operator.Not, Operand.Bool)
+# def operator_and(ctx, a):
+#     yield not bool(a)
 
 if __name__ == '__main__':
     from myscript.runtime import ScriptRuntime
@@ -436,21 +493,21 @@ if __name__ == '__main__':
     # pprint(OP_REGISTRY)
 
     tests = [
-        """ [ 3 2]  [ 1 'b' { 'c' 'd' } ] ~ """,
+        """ [ 3 2]  [ 1 'b' { 'c' 'd' } ] """,
         """ [ 1 'b' [ 3 2 ]`  { 'c' 'd' } ]`  """,
         """ [ 1 2 3 - 4 5 6 7 + ] """,
-        """ 'c' ['a' 'b'] + """,
-        """ { -1 5 * [ 'step' ] + }! """,
-        """ [ 1 '2 3 -'! 4 5 6 7 + ] """,
-        """ 1 2 3 4 5 6 2$ """,
-        """ 1 2 3 4 5 6 2@ """,
+        """ 'c' ['a' 'b'] ++ """,
+        # """ { -1 5 * [ 'step' ] + }! """,
+        # """ [ 1 '2 3 -'! 4 5 6 7 + ] """,
+        # """ 1 2 3 4 5 6 2$ """,
+        # """ 1 2 3 4 5 6 2@ """,
         """ 'str' 3 * 2 ['a' 'b' 'c'] *""",
-        """ 1 2 3 4 5 6 ,,, [] { 1@ + } 3* . # """,
-        """ [ 1 2 3 ] {2*}/ ~ """,
-        """ [] [ 1 2 3 ] {2* 1@ +}% """,
+        # """ 1 2 3 4 5 6 ,,, [] { 1@ + } 3* . # """,
+        # """ [ 1 2 3 ] {2*}/ ~ """,
+        # """ [] [ 1 2 3 ] {2* 1@ +}% """,
         """ [1 2 3 4 5 6] [2 4 5] -""",
-        """ [7 6; 5 4 3 2 1] {3 <=}/ 0 false = """,
-        """ [ 1 2 3 ] {2*}/ . [ 2 4 6 ] = """,
+        # """ [7 6; 5 4 3 2 1] {3 <=}/ 0 false = """,
+        # """ [ 1 2 3 ] {2*}/ . [ 2 4 6 ] = """,
         """ [ 1 3 4 ] [ 7 3 1 2 ] | """,
         """ [ 1 3 4 ] [ 7 3 1 2 ] & """,
         """ [ 1 3 4 ] [ 7 3 1 2 ] ^ """,
