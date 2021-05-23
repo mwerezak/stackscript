@@ -73,13 +73,10 @@ class ContextFrame:
         except OperandError as err:
             operands = ', '.join(value.name for value in err.operands)
             message = f"{err.message}: {operands}"
-            raise ScriptError(message, opsym.meta) from err
-        except Exception as err:
-            raise RuntimeError('could not apply operand', opsym.meta) from err
+            raise ScriptError(message, opsym.meta) from None
 
     ## Symbol Evaluation
     def eval(self, sym: ScriptSymbol) -> DataValue:
-        sym_type = sym.get_type()
         if isinstance(sym, Identifier):
             value = self._namespace.get(sym.name)
             if value is None:

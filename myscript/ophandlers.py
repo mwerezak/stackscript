@@ -485,7 +485,7 @@ def operator_and(ctx: ContextFrame, a, b):
         sub_ctx.exec(a)
         if sub_ctx.stack_size() != 1:
             raise OperandError('left expression did not evaluate to a single value', a, b)
-        a = sub_ctx.peek_stack(0)
+        a = sub_ctx.peek_stack()
 
     if not bool(a):
         return [a]  # short-circuit!
@@ -496,7 +496,7 @@ def operator_and(ctx: ContextFrame, a, b):
         sub_ctx.exec(b)
         if sub_ctx.stack_size() != 1:
             raise OperandError('right expression did not evaluate to a single value', a, b)
-        b = sub_ctx.peek_stack(0)
+        b = sub_ctx.peek_stack()
 
     return [b]
 
@@ -511,7 +511,7 @@ def operator_or(ctx: ContextFrame, a, b):
         sub_ctx.exec(a)
         if sub_ctx.stack_size() != 1:
             raise OperandError('left expression did not evaluate to a single value', a, b)
-        a = sub_ctx.peek_stack(0)
+        a = sub_ctx.peek_stack()
 
 
     if bool(a):
@@ -523,9 +523,28 @@ def operator_or(ctx: ContextFrame, a, b):
         sub_ctx.exec(b)
         if sub_ctx.stack_size() != 1:
             raise OperandError('right expression did not evaluate to a single value', a, b)
-        b = sub_ctx.peek_stack(0)
+        b = sub_ctx.peek_stack()
 
     return [b]
+
+###### Short-Circuiting Ternary-If
+
+@ophandler_untyped(Operator.If, 3)
+def operator_if(ctx: ContextFrame, cond, if_true, if_false):
+    if isinstance(cond, BlockValue):
+        sub_ctx = ctx.create_child()
+        sub_ctx.exec(cond)
+        if sub_ctx.stack_size() != 1:
+            raise OperandError('condition did not evaluate to a single value', cond, if_true, if_false)
+        cond = sub_ctx.peek_stack()
+
+    result = if_true if bool(cond) else if_false
+    if isinstance(result, BlockValue):
+        sub_ctx = ctx.create_child()
+        sub_ctx.exec(result)
+        yield from sub_ctx.iter_stack_result()
+    else:
+        yield result
 
 
 if __name__ == '__main__':
@@ -554,7 +573,19 @@ if __name__ == '__main__':
         """ [ 1 3 4 ] [ 7 3 1 2 ] & """,
         """ [ 1 3 4 ] [ 7 3 1 2 ] ^ """,
         """ 'a' not """,
-        """ ['a' 'b']: mylist; [mylist mylist mylist] """
+        """ 'abc': mystr; [mystr mystr mystr] """,
+    ]
+    tests = [
+        """
+        {
+            :n;
+            n 0 <=
+            1
+            { n 1- factorial! n * } if
+        } :factorial;
+        
+        5 factorial!
+        """
     ]
 
     for test in tests:

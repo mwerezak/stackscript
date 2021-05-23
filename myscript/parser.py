@@ -185,8 +185,8 @@ Lexer.t_Identifier = t_Identifier
 class ScriptSymbol(Protocol):
     meta: SymbolMeta
 
-    def get_type(self) -> SymbolType:
-        ...
+    # def get_type(self) -> SymbolType:
+    #     ...
 
 class SymbolMeta(NamedTuple):
     text: str
@@ -200,8 +200,14 @@ class Identifier(NamedTuple):
     name: str
     meta: SymbolMeta
 
-    def get_type(self) -> SymbolType:
-        return SymbolType.Identifier
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}({self.name!r})'
+
+    def __str__(self) -> str:
+        return self.name
+
+    # def get_type(self) -> SymbolType:
+    #     return SymbolType.Identifier
 
 # closely related to but distinct from the set of data types
 class LiteralType(Enum):
@@ -220,26 +226,37 @@ class Literal(NamedTuple):
     value: Any  ## MUST BE IMMUTABLE
     meta: SymbolMeta
 
-    def get_type(self) -> SymbolType:
-        return SymbolType.Literal
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}({self.value!r})'
+
+    def __str__(self) -> str:
+        return repr(self.value)
+
+    # def get_type(self) -> SymbolType:
+    #     return SymbolType.Literal
 
 class OperatorSym(NamedTuple):
     operator: Operator
     meta: SymbolMeta
 
-    def get_type(self) -> SymbolType:
-        return SymbolType.Operator
-
-class SymbolType(Enum):
-    Identifier  = Identifier
-    Literal     = Literal
-    Operator    = OperatorSym
-
     def __repr__(self) -> str:
-        return f'<{self.__class__.__qualname__}.{self.name}>'
+        return f'{self.__class__.__name__}({self.operator})'
 
-    def as_type(self) -> Type[ScriptSymbol]:
-        return self.value
+    def __str__(self) -> str:
+        return self.operator.name
+    # def get_type(self) -> SymbolType:
+    #     return SymbolType.Operator
+
+# class SymbolType(Enum):
+#     Identifier  = Identifier
+#     Literal     = Literal
+#     Operator    = OperatorSym
+#
+#     def __repr__(self) -> str:
+#         return f'<{self.__class__.__qualname__}.{self.name}>'
+#
+#     def as_type(self) -> Type[ScriptSymbol]:
+#         return self.value
 
 class Parser:
     _delimiters = {
