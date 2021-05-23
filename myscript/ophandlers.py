@@ -16,7 +16,7 @@ from myscript.values import (
 )
 
 if TYPE_CHECKING:
-    from typing import Any, Union, Optional, Callable, Iterator, Sequence, MutableMapping, MutableSequence
+    from typing import Any, Union, Callable, Iterator, Sequence, MutableMapping
     from myscript.runtime import ContextFrame
     from myscript.values import DataValue
 
@@ -134,45 +134,44 @@ class _ReorderFunc(NamedTuple):
 
 ###### Invert
 
-# "dump" the array onto the stack
-# @ophandler_typed(Operator.Invert, Operand.Array)
-# def operator_invert(ctx, o):
-#     yield from o.value
+# "dump" the array or string onto the stack
+@ophandler_typed(Operator.Invert, Operand.Array)
+@ophandler_typed(Operator.Invert, Operand.String)
+def operator_invert(ctx, seq):
+    yield from seq
 
 # bitwise not
 @ophandler_typed(Operator.Invert, Operand.Number)
 def operator_invert(ctx, n):
     if not isinstance(n, IntValue):
         raise OperandError('unsupported operand type', n)
-    yield IntValue(~n.value)
+    return [ IntValue(~n.value) ]
 
 ###### Inspect
 
 @ophandler_untyped(Operator.Inspect, 1)
 def operator_inspect(ctx, o):
-    yield StringValue(o.format())
+    return [ StringValue(o.format()) ]
 
 
 ###### Invoke
 
-# evaluate a block in its own nested context
-# @ophandler_typed(Operator.Invoke, Operand.Block)
-# def operator_invoke(ctx, block):
-#     sub_ctx = ctx.create_child()
-#     sub_ctx.exec(block)
-#     yield from sub_ctx.iter_stack_result()
+# invoke a block, giving it the top item on the stack
+@ophandler_untyped(Operator.Invoke, 2)
+def operator_invoke(ctx: ContextFrame, args, block):
+    if not isinstance(block, BlockValue):
+        raise OperandError('unsupported operand type', args, block)
+    sub_ctx = ctx.create_child()
+    sub_ctx.push_stack(args)
+    sub_ctx.exec(block)
+    yield from sub_ctx.iter_stack_result()
 
 # evaluate a string directly in the current context
-# @ophandler_typed(Operator.Invoke, Operand.String)
-# def operator_invoke(ctx, text):
-#     ctx.execs(text.value)
-#     return ()
+@ophandler_typed(Operator.Invoke, Operand.String)
+def operator_invoke(ctx, text):
+    ctx.execs(text.value)
+    return ()
 
-# @ophandler_typed(Operator.Invoke, Operand.Number)
-# def operator_invoke(ctx, block):
-#     sub_ctx = ctx.create_child()
-#     sub_ctx.exec(block)
-#     yield from sub_ctx.iter_stack_result()
 
 ###### Rotate
 
@@ -281,53 +280,37 @@ def operator_mul(ctx, a, b):
 
 ###### Div
 
-# map. execute a block over all elements.
-# @ophandler_permute(Operator.Div, Operand.Block, Operand.Array)
-# def operator_div(ctx, block, array):
-#     result = []
-#     for item in array:
-#         sub_ctx = ctx.create_child()
-#         sub_ctx.push_stack(item)
-#         sub_ctx.exec(block)
-#         result.extend(sub_ctx.iter_stack_result())
-#     yield ArrayValue(result)
-
-# @ophandler_permute(Operator.Div, Operand.Block, Operand.String)
-# def operator_div(ctx, block, string):
-#     result = []
-#     for item in string:
-#         sub_ctx = ctx.create_child()
-#         sub_ctx.push_stack(item)
-#         sub_ctx.exec(block)
-#         result.extend(sub_ctx.iter_stack_result())
-#     yield ArrayValue(result)
-
 @ophandler_typed(Operator.Div, Operand.Number, Operand.Number)
 def operator_div(ctx, a, b):
     yield NumberValue(a.value / b.value)
 
+# map. execute a block over all elements, producing an array.
+@ophandler_permute(Operator.Div, Operand.Block, Operand.Array)
+@ophandler_permute(Operator.Div, Operand.Block, Operand.String)
+def operator_div(ctx: ContextFrame, block, seq):
+    result = []
+    for item in seq:
+        sub_ctx = ctx.create_child()
+        sub_ctx.push_stack(item)
+        sub_ctx.exec(block)
+        result.extend(sub_ctx.iter_stack_result())
+    yield ArrayValue(result)
+
 
 ###### Mod
-
-# execute a block over all elements directly in the current context
-# @ophandler_permute(Operator.Mod, Operand.Block, Operand.Array)
-# def operator_mod(ctx, block, array):
-#     for item in array:
-#         ctx.push_stack(item)
-#         ctx.exec(block)
-#     return ()
-
-# @ophandler_permute(Operator.Mod, Operand.Block, Operand.String)
-# def operator_mod(ctx, block, string):
-#     for item in string:
-#         ctx.push_stack(item)
-#         ctx.exec(block)
-#     return ()
-
 
 @ophandler_typed(Operator.Mod, Operand.Number, Operand.Number)
 def operator_mod(ctx, a, b):
     yield NumberValue(a.value % b.value)
+
+# execute a block over all elements directly in the current context
+@ophandler_permute(Operator.Mod, Operand.Block, Operand.Array)
+@ophandler_permute(Operator.Mod, Operand.Block, Operand.String)
+def operator_mod(ctx: ContextFrame, block, seq):
+    for item in seq:
+        ctx.push_stack(item)
+        ctx.exec(block)
+    return ()
 
 
 ###### Pow
@@ -544,17 +527,17 @@ if __name__ == '__main__':
         """ [ 1 'b' [ 3 2 ]`  { 'c' 'd' } ]`  """,
         """ [ 1 2 3 - 4 5 6 7 + ] """,
         """ 'c' ['a' 'b'] ++ """,
-        # """ { -1 5 * [ 'step' ] + }! """,
-        # """ [ 1 '2 3 -'! 4 5 6 7 + ] """,
+        """ [] { -1 5 * [ 'step' ] ++ }! """,
+        """ [ 1 '2 3 -'! 4 5 6 7 + ] """,
         # """ 1 2 3 4 5 6 2$ """,
         # """ 1 2 3 4 5 6 2@ """,
         """ 'str' 3 * 2 ['a' 'b' 'c'] *""",
         # """ 1 2 3 4 5 6 ,,, [] { 1@ + } 3* . # """,
-        # """ [ 1 2 3 ] {2*}/ ~ """,
+        """ [ 1 2 3 ] {2*}/ ~ """,
         # """ [] [ 1 2 3 ] {2* 1@ +}% """,
         """ [1 2 3 4 5 6] [2 4 5] -""",
-        # """ [7 6; 5 4 3 2 1] {3 <=}/ 0 false = """,
-        # """ [ 1 2 3 ] {2*}/ . [ 2 4 6 ] = """,
+        """ [7 6; 5 4 3 2 1] {3 <=}/ 0 false = """,
+        """ [ 1 2 3 ] {2*}/ . [ 2 4 6 ] = """,
         """ [ 1 3 4 ] [ 7 3 1 2 ] | """,
         """ [ 1 3 4 ] [ 7 3 1 2 ] & """,
         """ [ 1 3 4 ] [ 7 3 1 2 ] ^ """,
