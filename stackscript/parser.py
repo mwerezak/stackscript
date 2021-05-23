@@ -1,8 +1,3 @@
-""" An interpreter for a stack-based language.
-| Author: Mike Werezak <mwerezak@gmail.com>
-| Created: 2021/05/20
-"""
-
 from __future__ import annotations
 
 import string

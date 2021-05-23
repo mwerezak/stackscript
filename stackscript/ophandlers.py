@@ -1,8 +1,3 @@
-""" An interpreter for a GolfScript-like language.
-| Author: Mike Werezak <mwerezak@gmail.com>
-| Created: 2021/05/21
-"""
-
 from __future__ import annotations
 
 import itertools
