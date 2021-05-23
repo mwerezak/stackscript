@@ -186,9 +186,9 @@ def operator_invoke(ctx, text):
 
 ###### Dup
 
-@ophandler_untyped(Operator.Dup, 0)
-def operator_dup(ctx):
-    yield ctx.peek_stack(0)
+@ophandler_untyped(Operator.Dup, 1)
+def operator_dup(ctx, o):
+    return [o, o]
 
 ###### Drop
 
@@ -543,11 +543,9 @@ def operator_if(ctx: ContextFrame, cond, if_true, if_false):
 
     result = if_true if bool(cond) else if_false
     if isinstance(result, BlockValue):
-        sub_ctx = ctx.create_child(share_namespace=True)
-        sub_ctx.exec(result)
-        yield from sub_ctx.iter_stack_result()
-    else:
-        yield result
+        ctx.exec(result)
+        return ()
+    return [result]
 
 ###### Do / While
 
@@ -578,42 +576,4 @@ if __name__ == '__main__':
     from pprint import pprint
     pprint(OP_REGISTRY)
 
-    tests = [
-        """ [ 3 2]  [ 1 'b' { 'c' 'd' } ] """,
-        """ [ 1 'b' [ 3 2 ]`  { 'c' 'd' } ]`  """,
-        """ [ 1 2 3 - 4 5 6 7 + ] """,
-        """ 'c' ['a' 'b'] ++ """,
-        """ [] { -1 5 * [ 'step' ] ++ }! """,
-        """ [ 1 '2 3 -'! 4 5 6 7 + ] """,
-        """ [1 2 3 4 5 6] 2$ """,
-        # """ 1 2 3 4 5 6 2@ """,
-        """ 'str' 3 * 2 ['a' 'b' 'c'] *""",
-        # """ 1 2 3 4 5 6 ,,, [] { 1@ + } 3* . # """,
-        """ [ 1 2 3 ] {2*}/ ~ """,
-        # """ [] [ 1 2 3 ] {2* 1@ +}% """,
-        """ [1 2 3 4 5 6] [2 4 5] -""",
-        """ [7 6; 5 4 3 2 1] {3 <=}/ 0 false = """,
-        """ [ 1 2 3 ] {2*}/ . [ 2 4 6 ] = """,
-        """ [ 1 3 4 ] [ 7 3 1 2 ] | """,
-        """ [ 1 3 4 ] [ 7 3 1 2 ] & """,
-        """ [ 1 3 4 ] [ 7 3 1 2 ] ^ """,
-        """ 'a' not """,
-        """ 'abc': mystr; [mystr mystr mystr] """,
-        """
-        {
-            :n;
-            n 0 <=
-            1
-            { n 1- factorial! n * } if
-        } :factorial;
-        
-        5 factorial!
-        """,
-        """ 5 { 1- .. 0 > } do, """,
-        """ 5:n; { n 1- :n 0 >= } { n` } while """
-    ]
 
-    for test in tests:
-        print('>>>', test)
-        rt = ScriptRuntime()
-        rt.run_script(test)

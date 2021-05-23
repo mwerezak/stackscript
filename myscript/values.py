@@ -170,7 +170,7 @@ class BlockValue(DataValue[Sequence[ScriptSymbol]]):
         super().__init__(tuple(value))
 
     def format(self) -> str:
-        content = ' '.join(repr(sym) for sym in self.value)
+        content = ' '.join(sym.meta.text for sym in self.value)
         return '{ ' + content + ' }'
 
     def __iter__(self) -> Iterator[ScriptSymbol]:
