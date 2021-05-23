@@ -77,7 +77,6 @@ class Lexer:
         'not'   : Operator.Not,
         'and'   : Operator.And,
         'or'    : Operator.Or,
-        'xor'   : Operator.Xor,
         'do'    : Operator.Do,
         'while' : Operator.While,
         'until' : Operator.Until,
