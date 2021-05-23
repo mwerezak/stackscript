@@ -66,7 +66,7 @@ class Operator(Enum):
     Not     = OperatorInfo(r'not')
     And     = OperatorInfo(r'and')
     Or      = OperatorInfo(r'or')
-    Xor     = OperatorInfo(r'xor')
+
     Do      = OperatorInfo(r'do')
     While   = OperatorInfo(r'while')
     Until   = OperatorInfo(r'until')

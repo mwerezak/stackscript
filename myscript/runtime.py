@@ -22,11 +22,8 @@ if TYPE_CHECKING:
     from myscript.values import DataValue, BoolValue
 
 
-def _eval_bool(value: bool) -> BoolValue:
-    return BoolValue.TRUE if value else BoolValue.FALSE
-
 _simple_literals: Mapping[LiteralType, Callable[[Any], DataValue]] = {
-    LiteralType.Bool    : _eval_bool,
+    LiteralType.Bool    : BoolValue.get_value,
     LiteralType.Integer : IntValue,
     LiteralType.Float   : FloatValue,
     LiteralType.String  : StringValue,
@@ -57,16 +54,14 @@ class ContextFrame:
         for sym in prog:
             if sym.get_type() == SymbolType.Operator:
                 sym: OperatorSym
-                error = None
                 try:
                     apply_operator(self, sym.operator)
                 except OperandError as err:
-                    error = err
-
-                if error is not None:
-                    operands = ', '.join(value.name for value in error.operands)
-                    message = f"{error.message}: {operands}"
-                    raise ScriptError(message, sym.meta)
+                    operands = ', '.join(value.name for value in err.operands)
+                    message = f"{err.message}: {operands}"
+                    raise ScriptError(message, sym.meta) from err
+                except Exception as err:
+                    raise RuntimeError('could not apply operand', sym.meta) from err
 
             else:
                 value = self.eval(sym)
@@ -105,6 +100,9 @@ class ContextFrame:
 
     def clear_stack(self) -> None:
         self._stack.clear()
+
+    def stack_size(self) -> int:
+        return len(self._stack)
 
     ## Symbol Evaluation
     def eval(self, sym: ScriptSymbol) -> DataValue:
@@ -145,10 +143,9 @@ class ContextFrame:
 
     def format_stack(self) -> str:
         return '\n'.join(
-            f"[{i}]: {value!r}"
+            f"[{i}]: {value.format()}"
             for i, value in enumerate(self.iter_stack())
         )
-
 
 
 class ScriptParser:

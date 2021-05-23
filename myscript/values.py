@@ -69,6 +69,10 @@ class BoolValue(DataValue[bool]):
     def __eq__(self, other: DataValue) -> bool:
         return self._value == bool(other)
 
+    @classmethod
+    def get_value(cls, b: bool) -> BoolValue:
+        return BoolValue.TRUE if b else BoolValue.FALSE
+
 BoolValue.TRUE  = BoolValue(True)
 BoolValue.FALSE = BoolValue(False)
 
