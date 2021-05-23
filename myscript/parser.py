@@ -77,10 +77,9 @@ class Lexer:
         'not'   : Operator.Not,
         'and'   : Operator.And,
         'or'    : Operator.Or,
+        'if'    : Operator.If,
         'do'    : Operator.Do,
         'while' : Operator.While,
-        'until' : Operator.Until,
-        'if'    : Operator.If,
     }
 
     tokens = (

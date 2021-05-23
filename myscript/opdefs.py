@@ -67,10 +67,10 @@ class Operator(Enum):
     And     = OperatorInfo(r'and')
     Or      = OperatorInfo(r'or')
 
+    If      = OperatorInfo(r'if')
     Do      = OperatorInfo(r'do')
     While   = OperatorInfo(r'while')
-    Until   = OperatorInfo(r'until')
-    If      = OperatorInfo(r'if')
+
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__qualname__}.{self.name}>'

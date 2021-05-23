@@ -210,7 +210,11 @@ def operator_assign(ctx: ContextFrame):
     if ctx.stack_size() < 1:
         raise OperandError('not enough operands')
 
-    identifier = next(ctx.get_symbol_iter())
+    try:
+        identifier = next(ctx.get_symbol_iter())
+    except StopIteration:
+        raise OperandError('identifier not found')
+
     if not isinstance(identifier, Identifier):
         raise OperandError('cannot assign to a non-identifier')
 
@@ -262,7 +266,6 @@ def operator_mul(ctx, repeat, block):
     for i in range(repeat.value):
         ctx.exec(block)
     return ()
-
 
 # array/string repeat
 @ophandler_permute(Operator.Mul, Operand.Number, Operand.Array)
@@ -481,7 +484,7 @@ def operator_not(ctx, a):
 def operator_and(ctx: ContextFrame, a, b):
     # left expression
     if isinstance(a, BlockValue):
-        sub_ctx = ctx.create_child()
+        sub_ctx = ctx.create_child(share_namespace=True)
         sub_ctx.exec(a)
         if sub_ctx.stack_size() != 1:
             raise OperandError('left expression did not evaluate to a single value', a, b)
@@ -492,7 +495,7 @@ def operator_and(ctx: ContextFrame, a, b):
 
     # right expression
     if isinstance(b, BlockValue):
-        sub_ctx = ctx.create_child()
+        sub_ctx = ctx.create_child(share_namespace=True)
         sub_ctx.exec(b)
         if sub_ctx.stack_size() != 1:
             raise OperandError('right expression did not evaluate to a single value', a, b)
@@ -507,7 +510,7 @@ def operator_and(ctx: ContextFrame, a, b):
 def operator_or(ctx: ContextFrame, a, b):
     # left expression
     if isinstance(a, BlockValue):
-        sub_ctx = ctx.create_child()
+        sub_ctx = ctx.create_child(share_namespace=True)
         sub_ctx.exec(a)
         if sub_ctx.stack_size() != 1:
             raise OperandError('left expression did not evaluate to a single value', a, b)
@@ -519,7 +522,7 @@ def operator_or(ctx: ContextFrame, a, b):
 
     # right expression
     if isinstance(b, BlockValue):
-        sub_ctx = ctx.create_child()
+        sub_ctx = ctx.create_child(share_namespace=True)
         sub_ctx.exec(b)
         if sub_ctx.stack_size() != 1:
             raise OperandError('right expression did not evaluate to a single value', a, b)
@@ -532,7 +535,7 @@ def operator_or(ctx: ContextFrame, a, b):
 @ophandler_untyped(Operator.If, 3)
 def operator_if(ctx: ContextFrame, cond, if_true, if_false):
     if isinstance(cond, BlockValue):
-        sub_ctx = ctx.create_child()
+        sub_ctx = ctx.create_child(share_namespace=True)
         sub_ctx.exec(cond)
         if sub_ctx.stack_size() != 1:
             raise OperandError('condition did not evaluate to a single value', cond, if_true, if_false)
@@ -540,12 +543,34 @@ def operator_if(ctx: ContextFrame, cond, if_true, if_false):
 
     result = if_true if bool(cond) else if_false
     if isinstance(result, BlockValue):
-        sub_ctx = ctx.create_child()
+        sub_ctx = ctx.create_child(share_namespace=True)
         sub_ctx.exec(result)
         yield from sub_ctx.iter_stack_result()
     else:
         yield result
 
+###### Do / While
+
+# keep executing a block in the current context as long as the top item is true
+@ophandler_typed(Operator.Do, Operand.Block)
+def operator_do(ctx: ContextFrame, block):
+    ctx.exec(block)
+    while bool(ctx.pop_stack()):
+        ctx.exec(block)
+    return ()
+
+@ophandler_typed(Operator.While, Operand.Block, Operand.Block)
+def operator_while(ctx: ContextFrame, cond, body):
+    while _eval_cond(ctx, cond):
+        ctx.exec(body)
+    return ()
+
+def _eval_cond(ctx: ContextFrame, cond: BlockValue) -> bool:
+    sub_ctx = ctx.create_child(share_namespace=True)
+    sub_ctx.exec(cond)
+    if sub_ctx.stack_size() != 1:
+        raise OperandError('condition did not evaluate to a single value', cond)
+    return bool(sub_ctx.peek_stack())
 
 if __name__ == '__main__':
     from myscript.runtime import ScriptRuntime
@@ -574,8 +599,6 @@ if __name__ == '__main__':
         """ [ 1 3 4 ] [ 7 3 1 2 ] ^ """,
         """ 'a' not """,
         """ 'abc': mystr; [mystr mystr mystr] """,
-    ]
-    tests = [
         """
         {
             :n;
@@ -585,7 +608,9 @@ if __name__ == '__main__':
         } :factorial;
         
         5 factorial!
-        """
+        """,
+        """ 5 { 1- .. 0 > } do, """,
+        """ 5:n; { n 1- :n 0 >= } { n` } while """
     ]
 
     for test in tests:

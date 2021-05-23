@@ -34,19 +34,21 @@ class ContextFrame:
     _stack: Deque[DataValue]
     _namespace: ChainMap[str, DataValue]
     _block: Iterator[ScriptSymbol] = None
-    def __init__(self, runtime: ScriptRuntime, parent: Optional[ContextFrame], contents: Iterable[DataValue] = ()):
+    def __init__(self, runtime: ScriptRuntime, parent: Optional[ContextFrame], share_namespace: bool = False):
         self.runtime = runtime
         self.parent = parent
-        self._stack = deque(contents)  # index 0 is the TOP
+        self._stack = deque()  # index 0 is the TOP
 
         if parent is None:
             self._namespace = chainmap()
+        elif share_namespace:
+            self._namespace = parent._namespace
         else:
             self._namespace = parent._namespace.new_child()
 
-    def create_child(self, contents: Iterable[DataValue] = ()) -> ContextFrame:
+    def create_child(self, *, share_namespace: bool = False) -> ContextFrame:
         """Create a new child frame from this one."""
-        return ContextFrame(self.runtime, self, contents)
+        return ContextFrame(self.runtime, self, share_namespace)
 
     def get_namespace(self) -> MutableMapping[str, DataValue]:
         return self._namespace
