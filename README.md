@@ -1,12 +1,12 @@
 # Title Goes Here
 
-This is the reference interpreter for an unnamed stack-based scripting language.
+This an interpreter for an unnamed stack-based scripting language.
 
 The interpreter is implemented in Python and very much incomplete. The whole project is a personal experiment. 
 
-See the bottom of `myscript/runtime.py` for example of usage.
+See the bottom of `stackscript/runtime.py` for example of usage. Or just run `python -m stackscript.runtime` from the repository root.
 
-Also included is a slightly modified implementation of PLY which I am using as the lexer. 
+Also included is a slightly modified version of PLY which I am using as the lexer. 
 I plan to replace it with a simple regex-based lexer, as I'm not really doing anything fancy.
 
 At the end of this readme is a WIP operator reference.
