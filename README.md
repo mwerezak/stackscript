@@ -12,9 +12,10 @@ I plan to replace it with a simple regex-based lexer, as I'm not really doing an
 At the end of this readme is an operator reference.
 
 ## TODO
+- A proper name
 - Actually load script files or run as a REPL.
 - Prelude mechanism, so that a standard library of builtin names can be loaded into the global scope.
-- Some way to script files from within a script, will probably model this after Lua.
+- A dictionary or mapping type.
 
 ## About the Language
 
