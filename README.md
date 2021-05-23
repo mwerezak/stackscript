@@ -171,7 +171,7 @@ Note that certain operators are *overloaded* and so may appear multiple times in
 ### Blocks
 | operator    | name        | arity  |  effect
 | ----------- | ----------- | ------ | -------
-| ~           | execute     | 1      | Execute the block with the current stack.
+| ~           | execute     | 1      | Execute the block in the current scope.
 | !           | invoke      | 2      | Takes an argument and a block, and executes the block in a new scope where the argument is the sole element of the stack. 
 | /           | map         | 2      | Operates on a block and a list. Apply a block to each element of a list, producing a new list.
 | %           | fold        | 2      | Operates on a block and a list. For each element in a list, push the element onto the stack then apply the block to the stack.
