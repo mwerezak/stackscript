@@ -10,6 +10,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, NamedTuple
 
 from myscript.opdefs import Operator, Operand
+from myscript.parser import Identifier
 
 from myscript.values import (
     DataValue, BoolValue, IntValue, FloatValue, NumberValue, StringValue, ArrayValue, BlockValue
@@ -75,9 +76,9 @@ def _search_registery(op: Operator, ctx: ContextFrame) -> OpHandler:
             return opdata
 
         if nargs >= arity:
-            raise OperandError(f"Invalid operands for operator '{op.name}'", *args)
+            raise OperandError("Invalid operands", *args)
 
-    raise OperandError(f"not enough operands for operator '{op.name}'")
+    raise OperandError("not enough operands")
 
 def _register_operator(opdata: OpHandler) -> None:
     registry = OP_REGISTRY[opdata.op]
@@ -204,7 +205,18 @@ def operator_break(ctx):
 
 ###### Assignment
 
-## TODO
+@ophandler_untyped(Operator.Assign, 0)
+def operator_assign(ctx: ContextFrame):
+    if ctx.stack_size() < 1:
+        raise OperandError('not enough operands')
+
+    identifier = next(ctx.get_symbol_iter())
+    if not isinstance(identifier, Identifier):
+        raise OperandError('cannot assign to a non-identifier')
+
+    namespace = ctx.get_namespace()
+    namespace[identifier.name] = ctx.peek_stack()
+    return ()
 
 
 ###### Add
@@ -542,6 +554,7 @@ if __name__ == '__main__':
         """ [ 1 3 4 ] [ 7 3 1 2 ] & """,
         """ [ 1 3 4 ] [ 7 3 1 2 ] ^ """,
         """ 'a' not """,
+        """ ['a' 'b']: mylist; [mylist mylist mylist] """
     ]
 
     for test in tests:

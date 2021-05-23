@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections import deque, ChainMap as chainmap
 from typing import TYPE_CHECKING
 
-from myscript.parser import SymbolType, LiteralType, Lexer, Parser
+from myscript.parser import LiteralType, Lexer, Parser, Identifier, Literal, OperatorSym
 from myscript.exceptions import ScriptError
 from myscript.ophandlers import apply_operator, OperandError
 
@@ -17,8 +17,8 @@ from myscript.values import (
 )
 
 if TYPE_CHECKING:
-    from typing import Any, Optional, Callable, Iterator, Iterable, Mapping, ChainMap, Deque
-    from myscript.parser import ScriptSymbol, Identifier, Literal, OperatorSym
+    from typing import Any, Optional, Callable, Iterator, Iterable, Mapping, MutableMapping, ChainMap, Deque
+    from myscript.parser import ScriptSymbol
     from myscript.values import DataValue, BoolValue
 
 
@@ -33,6 +33,7 @@ _simple_literals: Mapping[LiteralType, Callable[[Any], DataValue]] = {
 class ContextFrame:
     _stack: Deque[DataValue]
     _namespace: ChainMap[str, DataValue]
+    _block: Iterator[ScriptSymbol] = None
     def __init__(self, runtime: ScriptRuntime, parent: Optional[ContextFrame], contents: Iterable[DataValue] = ()):
         self.runtime = runtime
         self.parent = parent
@@ -47,29 +48,55 @@ class ContextFrame:
         """Create a new child frame from this one."""
         return ContextFrame(self.runtime, self, contents)
 
-    def get_namespace(self) -> Mapping[str, DataValue]:
+    def get_namespace(self) -> MutableMapping[str, DataValue]:
         return self._namespace
 
-    def exec(self, prog: Iterable[ScriptSymbol]) -> None:
-        for sym in prog:
-            if sym.get_type() == SymbolType.Operator:
-                sym: OperatorSym
-                try:
-                    apply_operator(self, sym.operator)
-                except OperandError as err:
-                    operands = ', '.join(value.name for value in err.operands)
-                    message = f"{err.message}: {operands}"
-                    raise ScriptError(message, sym.meta) from err
-                except Exception as err:
-                    raise RuntimeError('could not apply operand', sym.meta) from err
-
-            else:
-                value = self.eval(sym)
-                self.push_stack(value)
+    def get_symbol_iter(self) -> Iterator[ScriptSymbol]:
+        return self._block
 
     def execs(self, text: str) -> None:
         parser = self.runtime.create_parser()
         self.exec(parser.parse(text))
+
+    def exec(self, prog: Iterable[ScriptSymbol]) -> None:
+        self._block = iter(prog)
+        for sym in self._block:
+            if isinstance(sym, OperatorSym):
+                self._apply_operator(sym)
+            else:
+                value = self.eval(sym)
+                self.push_stack(value)
+
+    def _apply_operator(self, opsym: OperatorSym) -> None:
+        try:
+            apply_operator(self, opsym.operator)
+        except OperandError as err:
+            operands = ', '.join(value.name for value in err.operands)
+            message = f"{err.message}: {operands}"
+            raise ScriptError(message, opsym.meta) from err
+        except Exception as err:
+            raise RuntimeError('could not apply operand', opsym.meta) from err
+
+    ## Symbol Evaluation
+    def eval(self, sym: ScriptSymbol) -> DataValue:
+        sym_type = sym.get_type()
+        if isinstance(sym, Identifier):
+            value = self._namespace.get(sym.name)
+            if value is None:
+                raise ScriptError(f"could not resolve identifier '{sym.name}'", sym.meta)
+            return value
+
+        if isinstance(sym, Literal):
+            if sym.type == LiteralType.Array:
+                array_ctx = self.create_child()
+                array_ctx.exec(sym.value)
+                return ArrayValue(array_ctx.iter_stack_result())
+
+            ctor = _simple_literals.get(sym.type)
+            if ctor is not None:
+                return ctor(sym.value)
+
+        raise ValueError('cannot evaluate symbol', sym)
 
     ## Stack Operations
     ## TODO move these to EvalStack class?
@@ -89,7 +116,7 @@ class ContextFrame:
         """Iterate the stack contents as if copying results to another context."""
         return reversed(self._stack)
 
-    def peek_stack(self, idx: int) -> DataValue:
+    def peek_stack(self, idx: int = 0) -> DataValue:
         return self._stack[idx]
 
     def insert_stack(self, idx: int, value: DataValue) -> None:
@@ -103,38 +130,6 @@ class ContextFrame:
 
     def stack_size(self) -> int:
         return len(self._stack)
-
-    ## Symbol Evaluation
-    def eval(self, sym: ScriptSymbol) -> DataValue:
-        sym_type = sym.get_type()
-        if sym_type == SymbolType.Identifier:
-            sym: Identifier
-            value = self._namespace.get(sym.name)
-            if value is None:
-                raise ScriptError(f"could not resolve identifier '{sym.name}'", sym.meta)
-            return value
-
-        if sym_type == SymbolType.Literal:
-            sym: Literal
-            return self.eval_literal(sym)
-
-        raise ValueError('cannot evaluate symbol', sym)
-
-    def eval_literal(self, literal: Literal) -> DataValue:
-        ctor = _simple_literals.get(literal.type)
-        if ctor is not None:
-            return ctor(literal.value)
-
-        if literal.type == LiteralType.Array:
-            return self._eval_array(literal)
-
-        raise ValueError('could not evaluate literal', literal)
-
-    def _eval_array(self, literal: Literal) -> DataValue:
-        # create a new context in which to evaluate the array
-        array_ctx = self.create_child()
-        array_ctx.exec(literal.value)
-        return ArrayValue(array_ctx.iter_stack_result())
 
     def __str__(self) -> str:
         return ' '.join(
