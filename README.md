@@ -9,7 +9,12 @@ See the bottom of `stackscript/runtime.py` for example of usage. Or just run `py
 Also included is a slightly modified version of PLY which I am using as the lexer. 
 I plan to replace it with a simple regex-based lexer, as I'm not really doing anything fancy.
 
-At the end of this readme is a WIP operator reference.
+At the end of this readme is an operator reference.
+
+## TODO
+- Actually load script files or run as a REPL.
+- Prelude mechanism, so that a standard library of builtin names can be loaded into the global scope.
+- Some way to script files from within a script, will probably model this after Lua.
 
 ## About the Language
 
