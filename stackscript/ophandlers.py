@@ -423,15 +423,24 @@ def operator_ge(ctx, a, b):
 
 @ophandler_untyped(Operator.Equal, 2)
 def operator_equal(ctx, a, b):
-    yield BoolValue.get_value(a == b)
+    return [BoolValue.get_value(a == b)]
+
+@ophandler_untyped(Operator.NE, 2)
+def operator_ne(ctx, a, b):
+    return [BoolValue.get_value(a != b)]
 
 @ophandler_typed(Operator.Equal, Operand.Number, Operand.Number)
 def operator_equal(ctx, a, b):
-    if isinstance(a, IntValue) and isinstance(b, IntValue):
-        yield BoolValue.get_value(a.value == b.value)
-    else:
-        yield BoolValue.get_value( abs(a.value - b.value) < 10**-9 )
+    return [BoolValue.get_value(_number_equality(a, b))]
 
+@ophandler_typed(Operator.NE, Operand.Number, Operand.Number)
+def operator_ne(ctx, a, b):
+    return [BoolValue.get_value(not _number_equality(a, b))]
+
+def _number_equality(a: DataValue, b: DataValue):
+    if isinstance(a, IntValue) and isinstance(b, IntValue):
+        return a.value == b.value
+    return abs(a.value - b.value) < 10**-9
 
 ###### Array Append
 

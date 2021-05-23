@@ -56,6 +56,7 @@ class Operator(Enum):
     LE      = OperatorInfo(r'<=')     # less than or equal to
     GT      = OperatorInfo(r'>(?![>=])') # greater than, elements greater than or equal to index
     GE      = OperatorInfo(r'>=')     # greater than or equal to
+    NE      = OperatorInfo(r'~=')
     Equal   = OperatorInfo(r'=')      # equal to, element at index
 
     Append  = OperatorInfo(r'\+\+')   # array add/concat

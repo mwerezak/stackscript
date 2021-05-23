@@ -217,7 +217,7 @@ if __name__ == '__main__':
         """,
         """
         {
-            . 0 > {. 1- factorial! *} {;1} if
+            . 0 ~= {. 1- factorial! *} {;1} if
         }: factorial;
         5 factorial!
         """,
