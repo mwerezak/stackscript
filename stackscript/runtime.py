@@ -207,7 +207,7 @@ if __name__ == '__main__':
         """ 'abc': mystr; [mystr mystr mystr] """,
         """
         {
-            :n;
+            :n;  // assign the argument to "n"
             n 0 <=
             1
             { n 1- factorial! n * } if
@@ -222,7 +222,8 @@ if __name__ == '__main__':
         5 factorial!
         """,
         """ 5 { 1- .. 0 > } do, """,
-        """ 5:n; { n 1- :n 0 >= } { n` } while """
+        """ 5:n; { n 1- :n 0 >= } { n` } while """,
+        """ { 'a' 'b' + } { 1 - 3 } + """  # concat blocks
     ]
 
     for test in tests:

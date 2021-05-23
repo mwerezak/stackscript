@@ -83,6 +83,9 @@ class Lexer:
     }
 
     tokens = (
+        'ignore',
+        'ignore_comment',
+
         ## Delimiters
         *(delim.name for delim in Delimiter),
 
@@ -369,6 +372,7 @@ if __name__ == '__main__':
         "1 1+ > > > <<< not ! ~ ",
         "1 1+ >> > [ < <<  { not ! ] ~ }",
         "1 [1+ { >> > < } [< <] not ! ~ ",
+        "// assign the argument to 'n'",
     ]
 
     for test in tests:
