@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, NamedTuple, Protocol, runtime_checkable
 
 from ply import lex
 
-from myscript.opcodes import Operator
+from myscript.opdefs import Operator
 from myscript.exceptions import ScriptError
 
 if TYPE_CHECKING:

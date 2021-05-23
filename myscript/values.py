@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, TypeVar, overload
 
 from typing import Generic, Sequence, MutableSequence  # for generic type declaration
 from myscript.parser import ScriptSymbol
-from myscript.opcodes import Operand
+from myscript.opdefs import Operand
 
 if TYPE_CHECKING:
     from typing import Any, Iterator, Iterable, ClassVar
