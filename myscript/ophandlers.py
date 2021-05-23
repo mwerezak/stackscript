@@ -183,14 +183,6 @@ def operator_invoke(ctx, text):
 #     yield item
 
 
-###### Index
-
-# copy the ith stack element to top
-# @ophandler_typed(Operator.Index, Operand.Number)
-# def operator_index(ctx, index):
-#     yield ctx.peek_stack(index.value)
-
-
 ###### Dup
 
 @ophandler_untyped(Operator.Dup, 0)
@@ -450,6 +442,14 @@ def operator_decons(ctx, string):
     yield StringValue(string.value[:-1])
     yield StringValue(string.value[-1])
 
+###### Index
+
+# replace the array or string with the i-th element
+@ophandler_typed(Operator.Index, Operand.Array, Operand.Number)
+@ophandler_typed(Operator.Index, Operand.String, Operand.Number)
+def operator_index(ctx, seq, index):
+    return [seq[index.value]]
+
 ###### Size
 
 @ophandler_typed(Operator.Size, Operand.Array)
@@ -529,7 +529,7 @@ if __name__ == '__main__':
         """ 'c' ['a' 'b'] ++ """,
         """ [] { -1 5 * [ 'step' ] ++ }! """,
         """ [ 1 '2 3 -'! 4 5 6 7 + ] """,
-        # """ 1 2 3 4 5 6 2$ """,
+        """ [1 2 3 4 5 6] 2$ """,
         # """ 1 2 3 4 5 6 2@ """,
         """ 'str' 3 * 2 ['a' 'b' 'c'] *""",
         # """ 1 2 3 4 5 6 ,,, [] { 1@ + } 3* . # """,

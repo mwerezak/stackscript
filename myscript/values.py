@@ -126,6 +126,9 @@ class StringValue(DataValue[str]):
         for ch in self._value:
             yield StringValue(ch)
 
+    def __getitem__(self, idx: int) -> StringValue:
+        return StringValue(self._value[idx])
+
 class ArrayValue(DataValue[MutableSequence[DataValue]]):
     name = 'array'
     optype = Operand.Array
@@ -142,6 +145,9 @@ class ArrayValue(DataValue[MutableSequence[DataValue]]):
 
     def __iter__(self) -> Iterator[DataValue]:
         return iter(self._value)
+
+    def __getitem__(self, idx: int) -> DataValue:
+        return self._value[idx]
 
     def __hash__(self) -> int:
         return hash(id(self._value))

@@ -33,7 +33,6 @@ class Operator(Enum):
     Invoke  = OperatorInfo(r'!')    # evaluate a block or string and push results onto the stack
 
     # Rotate  = OperatorInfo(r'@')    # move the ith stack element to top
-    # Index   = OperatorInfo(r'\$')   # copy the ith stack element to top
     Dup     = OperatorInfo(r'\.')   # copy the top element. equivalent to 0$
     Drop    = OperatorInfo(r',')    # remove the top element from the stack
     Break   = OperatorInfo(r';')    # empty the stack (should this even be an operator?)
@@ -61,6 +60,7 @@ class Operator(Enum):
 
     Append  = OperatorInfo(r'\+\+')   # array add/concat
     Decons  = OperatorInfo(r'--')     # array remove/diff
+    Index   = OperatorInfo(r'\$')     # take the i-th element from an array or string
     Size    = OperatorInfo(r'\#')
 
     Not     = OperatorInfo(r'not')
