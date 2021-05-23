@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Optional
-    from myscript.parser import SymbolMeta
+    from stackscript.parser import SymbolMeta
 
 
 class ScriptError(Exception):

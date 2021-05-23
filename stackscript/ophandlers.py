@@ -9,17 +9,17 @@ import itertools
 from collections import defaultdict
 from typing import TYPE_CHECKING, NamedTuple
 
-from myscript.opdefs import Operator, Operand
-from myscript.parser import Identifier
+from stackscript.opdefs import Operator, Operand
+from stackscript.parser import Identifier
 
-from myscript.values import (
+from stackscript.values import (
     DataValue, BoolValue, IntValue, FloatValue, NumberValue, StringValue, ArrayValue, BlockValue
 )
 
 if TYPE_CHECKING:
     from typing import Any, Union, Callable, Iterator, Sequence, MutableMapping
-    from myscript.runtime import ContextFrame
-    from myscript.values import DataValue
+    from stackscript.runtime import ContextFrame
+    from stackscript.values import DataValue
 
     Signature = Sequence[Operand]
     OperatorFunc = Callable[[ContextFrame, ...], Iterator[DataValue]]
@@ -571,7 +571,7 @@ def _eval_cond(ctx: ContextFrame, cond: BlockValue) -> bool:
     return bool(sub_ctx.peek_stack())
 
 if __name__ == '__main__':
-    from myscript.runtime import ScriptRuntime
+    from stackscript.runtime import ScriptRuntime
 
     from pprint import pprint
     pprint(OP_REGISTRY)

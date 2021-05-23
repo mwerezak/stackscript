@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING, NamedTuple, Protocol, runtime_checkable
 
 from ply import lex
 
-from myscript.opdefs import Operator
-from myscript.exceptions import ScriptError
+from stackscript.opdefs import Operator
+from stackscript.exceptions import ScriptError
 
 if TYPE_CHECKING:
     from typing import Any, Union, Optional, Type, Iterator, Iterable, Callable, Mapping

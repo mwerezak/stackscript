@@ -8,18 +8,18 @@ from __future__ import annotations
 from collections import deque, ChainMap as chainmap
 from typing import TYPE_CHECKING
 
-from myscript.parser import LiteralType, Lexer, Parser, Identifier, Literal, OperatorSym
-from myscript.exceptions import ScriptError
-from myscript.ophandlers import apply_operator, OperandError
+from stackscript.parser import LiteralType, Lexer, Parser, Identifier, Literal, OperatorSym
+from stackscript.exceptions import ScriptError
+from stackscript.ophandlers import apply_operator, OperandError
 
-from myscript.values import (
+from stackscript.values import (
     BoolValue, IntValue, FloatValue, StringValue, ArrayValue, BlockValue
 )
 
 if TYPE_CHECKING:
     from typing import Any, Optional, Callable, Iterator, Iterable, Mapping, MutableMapping, ChainMap, Deque
-    from myscript.parser import ScriptSymbol
-    from myscript.values import DataValue, BoolValue
+    from stackscript.parser import ScriptSymbol
+    from stackscript.values import DataValue, BoolValue
 
 
 _simple_literals: Mapping[LiteralType, Callable[[Any], DataValue]] = {
@@ -229,18 +229,3 @@ if __name__ == '__main__':
         print('>>>', test)
         rt = ScriptRuntime()
         rt.run_script(test)
-
-"""
-{ #method 1
-    . {. 1- factorial! *} {;1} if
-}:factorial;
-
-{ #method 2
-    :x;
-    0:i;
-    1
-    {i x<} {i 1+:i *} while
-}:factorial;
-
-{1+,1>{*}*}:factorial; 5 factorial -> 120 #method 3
-"""

@@ -10,8 +10,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, TypeVar, overload
 
 from typing import Generic, Sequence, MutableSequence  # for generic type declaration
-from myscript.parser import ScriptSymbol
-from myscript.opdefs import Operand
+from stackscript.parser import ScriptSymbol
+from stackscript.opdefs import Operand
 
 if TYPE_CHECKING:
     from typing import Any, Iterator, Iterable, ClassVar
