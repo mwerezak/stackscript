@@ -225,21 +225,26 @@ def operator_assign(ctx: ContextFrame):
 
 ###### Add
 
+# concatenate blocks
+@ophandler_typed(Operator.Add, Operand.Block, Operand.Block)
+def operator_add(ctx, a, b):
+    return [BlockValue([*a.value, *b.value])]
+
 # concatenate arrays
 @ophandler_typed(Operator.Add, Operand.Array, Operand.Array)
 def operator_add(ctx, a, b):
     a.value.extend(b.value)
-    yield a
+    return [a]
 
 # concatenate strings
 @ophandler_typed(Operator.Add, Operand.String, Operand.String)
 def operator_add(ctx, a, b):
-    yield StringValue(a.value + b.value)
+    return [StringValue(a.value + b.value)]
 
 # add numbers
 @ophandler_typed(Operator.Add, Operand.Number, Operand.Number)
 def operator_add(ctx, a, b):
-    yield NumberValue(a.value + b.value)
+    return [NumberValue(a.value + b.value)]
 
 
 ###### Sub
