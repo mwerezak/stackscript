@@ -28,6 +28,8 @@ class Delimiter(Enum):
     EndBlock   = r'}'
     StartArray = r'\['
     EndArray   = r'\]'
+    StartTuple = r'\('
+    EndTuple   = r'\)'
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__qualname__}.{self.name}>'
@@ -68,15 +70,6 @@ class IdentifierToken(NamedTuple):
 
 ## PLY Rules
 class Lexer:
-    reserved = {
-        'not'   : Operator.Not,
-        'and'   : Operator.And,
-        'or'    : Operator.Or,
-        'if'    : Operator.If,
-        'do'    : Operator.Do,
-        'while' : Operator.While,
-    }
-
     tokens = (
         'ignore',
         'ignore_comment',
@@ -162,13 +155,7 @@ for op in Operator:
 ## Identifiers
 @lex.TOKEN(r'[a-zA-Z_][a-zA-Z0-9_]*')
 def t_Identifier(self, t):
-    reserved = self.reserved.get(t.value)
-    if reserved is not None:
-        # noinspection PyTypeChecker
-        t.value = OperatorToken(t.value, reserved)
-    else:
-        # noinspection PyTypeChecker
-        t.value = IdentifierToken(t.value)
+    t.value = IdentifierToken(t.value)
     return t
 Lexer.t_Identifier = t_Identifier
 
@@ -213,6 +200,7 @@ class LiteralType(Enum):
     Float   = auto()
     String  = auto()
     Array   = auto()
+    Tuple   = auto()
     Block   = auto()
 
     def __repr__(self) -> str:
@@ -259,6 +247,7 @@ class Parser:
     _delimiters = {
         Delimiter.StartBlock : Delimiter.EndBlock,
         Delimiter.StartArray : Delimiter.EndArray,
+        Delimiter.StartTuple : Delimiter.EndTuple,
     }
 
     _parse_tokens: Mapping[Type[TokenData], Callable[[Iterator[Token], TokenData, SymbolMeta], ScriptSymbol]]
@@ -334,6 +323,7 @@ class Parser:
     _structured_literals = {
         Delimiter.StartArray : LiteralType.Array,
         Delimiter.StartBlock : LiteralType.Block,
+        Delimiter.StartTuple : LiteralType.Tuple
     }
     def _parse_delimiter(self, tokens: Iterator[Token], tokdata: DelimiterToken, meta: Any) -> ScriptSymbol:
         end_delim = self._delimiters.get(tokdata.delim)

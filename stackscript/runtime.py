@@ -8,7 +8,7 @@ from stackscript.exceptions import ScriptError
 from stackscript.ophandlers import apply_operator, OperandError
 
 from stackscript.values import (
-    BoolValue, IntValue, FloatValue, StringValue, ArrayValue, BlockValue
+    BoolValue, IntValue, FloatValue, StringValue, ArrayValue, TupleValue, BlockValue
 )
 
 if TYPE_CHECKING:
@@ -23,6 +23,11 @@ _simple_literals: Mapping[LiteralType, Callable[[Any], DataValue]] = {
     LiteralType.Float   : FloatValue,
     LiteralType.String  : StringValue,
     LiteralType.Block   : BlockValue,
+}
+
+_compound_literals: Mapping[LiteralType, Callable[[Any], DataValue]] = {
+    LiteralType.Array : ArrayValue,
+    LiteralType.Tuple : TupleValue,
 }
 
 class ContextFrame:
@@ -81,14 +86,17 @@ class ContextFrame:
             return value
 
         if isinstance(sym, Literal):
-            if sym.type == LiteralType.Array:
-                array_ctx = self.create_child()
-                array_ctx.exec(sym.value)
-                return ArrayValue(array_ctx.iter_stack_result())
-
+            # simple literals
             ctor = _simple_literals.get(sym.type)
             if ctor is not None:
                 return ctor(sym.value)
+
+            # compound literals
+            ctor = _compound_literals.get(sym.type)
+            if ctor is not None:
+                array_ctx = self.create_child()
+                array_ctx.exec(sym.value)
+                return ctor(array_ctx.iter_stack_result())
 
         raise ValueError('cannot evaluate symbol', sym)
 
@@ -182,8 +190,6 @@ if __name__ == '__main__':
         """ -1 5 * { [ 'step' ] ++ }! """,
         """ [ 3 2]  [ 1 'b' { 'c' 'd' } ] """,
         """ [ 1 'b' [ 3 2 ]`  { 'c' 'd' } ]`  """,
-        """ [ 1 2 3 - 4 5 6 7 + ] """,
-        """ 'c' ['a' 'b'] ++ """,
         """ [] { -1 5 * [ 'step' ] ++ }! """,
         """ [ 1 '2 3 -'! 4 5 6 7 + ] """,
         """ [1 2 3 4 5 6] 2$ """,
@@ -212,16 +218,36 @@ if __name__ == '__main__':
         """,
         """
         {
-            . 0 ~= {. 1- factorial! *} {;1} if
+            . 0 = 
+            {;1}
+            {. 1- factorial! *} if
         }: factorial;
         5 factorial!
         """,
         """ 5 { 1- .. 0 > } do, """,
         """ 5:n; { n 1- :n 0 >= } { n` } while """,
         """ { 'a' 'b' + } { 1 - 3 } + """  # concat blocks
+        
+        """ ( 1 2 3 - 4 5 6 7 + ) """,
+        """ 'c' ('a' 'b') ++ """,
+        """ () { -1 5 * [ 'step' ] ++ }! """,
+        """ ( 1 '2 3 -'! 4 5 6 7 + ) """,
+        """ (1 2 3 4 5 6) 2$ """,
+        # """ 1 2 3 4 5 6 2@ """,
+        """ 'str' 3 * 2 ('a' 'b' 'c') *""",
+        # """ 1 2 3 4 5 6 ,,, [] { 1@ + } 3* . # """,
+        """ ( 1 2 3 ) {2*}/ ~ """,
+        # """ [] [ 1 2 3 ] {2* 1@ +}% """,
+        """ (1 2 3 4 5 6) [2 4 5] -""",
+        """ [7 6; 5 4 3 2 1] {3 <=}/ 0 false = """,
+        """ ( 1 2 3 ) {2*}/ . [ 2 4 6 ] = """,
+        """ ( 1 3 4 ) ( 7 3 1 2 ) | """,
+        """ ( 1 3 4 ) [ 7 3 1 2 ] & """,
+        """ ( 1 3 4 ) ( 7 3 1 2 ) ^ """,
     ]
 
     for test in tests:
         print('>>>', test)
         rt = ScriptRuntime()
         rt.run_script(test)
+

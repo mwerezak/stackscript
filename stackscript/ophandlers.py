@@ -8,7 +8,7 @@ from stackscript.opdefs import Operator, Operand
 from stackscript.parser import Identifier
 
 from stackscript.values import (
-    DataValue, BoolValue, IntValue, FloatValue, NumberValue, StringValue, ArrayValue, BlockValue
+    DataValue, BoolValue, IntValue, FloatValue, NumberValue, StringValue, ArrayValue, TupleValue, BlockValue
 )
 
 if TYPE_CHECKING:
@@ -132,11 +132,17 @@ class _ReorderFunc(NamedTuple):
 
 ###### Invert
 
-# "dump" the array or string onto the stack
+# "unpack" the array or string onto the stack
 @ophandler_typed(Operator.Invert, Operand.Array)
 @ophandler_typed(Operator.Invert, Operand.String)
-def operator_invert(ctx, seq):
+def operator_unpack(ctx, seq):
     yield from seq
+
+# "unpack" a block by executing it in the current context
+@ophandler_typed(Operator.Invert, Operand.Block)
+def operator_unpack(ctx, block):
+    ctx.exec(block)
+    return ()
 
 # bitwise not
 @ophandler_typed(Operator.Invert, Operand.Number)
@@ -230,8 +236,14 @@ def operator_add(ctx, a, b):
 # concatenate arrays
 @ophandler_typed(Operator.Add, Operand.Array, Operand.Array)
 def operator_add(ctx, a, b):
-    a.value.extend(b.value)
-    return [a]
+    if isinstance(a, TupleValue):
+        return[TupleValue(*a, *b)]
+
+    if isinstance(a, ArrayValue):
+        a.value.extend(b.value)
+        return [a]
+
+    raise OperandError('unsupported operand types', a, b)
 
 # concatenate strings
 @ophandler_typed(Operator.Add, Operand.String, Operand.String)
@@ -249,12 +261,18 @@ def operator_add(ctx, a, b):
 # array difference
 @ophandler_typed(Operator.Sub, Operand.Array, Operand.Array)
 def operator_sub(ctx, a, b):
-    for item in b:
-        try:
-            a.value.remove(item)
-        except ValueError:
-            pass
-    yield a
+    if isinstance(a, TupleValue):
+        return [TupleValue(item for item in a if item not in b)]
+
+    if isinstance(a, ArrayValue):
+        for item in b:
+            try:
+                a.value.remove(item)
+            except ValueError:
+                pass
+        return [a]
+
+    raise OperandError('unsupported operand types', a, b)
 
 @ophandler_typed(Operator.Sub, Operand.Number, Operand.Number)
 def operator_sub(ctx, a, b):
@@ -272,9 +290,8 @@ def operator_mul(ctx, repeat, block):
 # array/string repeat
 @ophandler_permute(Operator.Mul, Operand.Number, Operand.Array)
 def operator_mul(ctx, repeat, array):
-    yield ArrayValue([
-        data for data in array for i in range(repeat.value)
-    ])
+    ctor = type(array)
+    return [ctor( data for data in array for i in range(repeat.value) )]
 
 # array/string repeat
 @ophandler_permute(Operator.Mul, Operand.Number, Operand.String)
@@ -297,13 +314,15 @@ def operator_div(ctx, a, b):
 @ophandler_permute(Operator.Div, Operand.Block, Operand.Array)
 @ophandler_permute(Operator.Div, Operand.Block, Operand.String)
 def operator_div(ctx: ContextFrame, block, seq):
+    ctor = TupleValue if isinstance(seq, TupleValue) else ArrayValue
+
     result = []
     for item in seq:
         sub_ctx = ctx.create_child()
         sub_ctx.push_stack(item)
         sub_ctx.exec(block)
         result.extend(sub_ctx.iter_stack_result())
-    yield ArrayValue(result)
+    return [ctor(result)]
 
 
 ###### Mod
@@ -331,24 +350,36 @@ def operator_pow(ctx, a, b):
 
 ###### Bitwise Or/And/Xor
 
+def _array_ctor(*operands):
+    for o in operands:
+        if isinstance(o, ArrayValue):
+            return ArrayValue
+    return TupleValue
+
 # setwise or (union), and (intersection), xor (symmetric difference)
 @ophandler_typed(Operator.BitOr, Operand.Array, Operand.Array)
 def operator_bitor(ctx, a, b):
     union = set(a)
     union.update(b)
-    yield ArrayValue(union)
+
+    ctor = _array_ctor(a, b)
+    yield ctor(union)
 
 @ophandler_typed(Operator.BitAnd, Operand.Array, Operand.Array)
 def operator_bitand(ctx, a, b):
     intersect = set(a)
     intersect.intersection_update(b)
-    yield ArrayValue(intersect)
+
+    ctor = _array_ctor(a, b)
+    yield ctor(intersect)
 
 @ophandler_typed(Operator.BitXor, Operand.Array, Operand.Array)
 def operator_bitxor(ctx, a, b):
     symdiff = set(a)
     symdiff.symmetric_difference_update(b)
-    yield ArrayValue(symdiff)
+
+    ctor = _array_ctor(a, b)
+    yield ctor(symdiff)
 
 # bitwise and, or, xor
 @ophandler_typed(Operator.BitAnd, Operand.Number, Operand.Number)
@@ -439,34 +470,47 @@ def _number_equality(a: DataValue, b: DataValue):
         return a.value == b.value
     return abs(a.value - b.value) < 10**-9
 
-###### Array Append
+###### Array Cons/Append
 
 # append item to beginning or end of array
 # if both operands are arrays, append the second to the end of the first
 @ophandler_untyped(Operator.Append, 2)
 def operator_append(ctx, a, b):
+    if isinstance(a, TupleValue):
+        return [TupleValue([*a, b])]
     if isinstance(a, ArrayValue):
         a.value.append(b)
-        yield a
-    elif isinstance(b, ArrayValue):
+        return [a]
+
+    if isinstance(b, TupleValue):
+        return [TupleValue([a, *b])]
+    if isinstance(b, ArrayValue):
         b.value.insert(0, a)
-        yield b
-    else:
-        raise OperandError("unsupported operand type", a, b)
+        return [b]
+
+    raise OperandError("unsupported operand type", a, b)
 
 
 ###### Array Decons/Pop
 
 @ophandler_typed(Operator.Decons, Operand.Array)
 def operator_decons(ctx, array):
-    item = array.value.pop()
-    yield array
-    yield item
+    if isinstance(array, TupleValue):
+        values = list(array)
+        return [TupleValue(values[:-1]), values[-1]]
+    if isinstance(array, ArrayValue):
+        item = array.value.pop()
+        return [array, item]
+
+    raise OperandError("unsupported operand type", array)
+
 
 @ophandler_typed(Operator.Decons, Operand.String)
 def operator_decons(ctx, string):
-    yield StringValue(string.value[:-1])
-    yield StringValue(string.value[-1])
+    return [
+        StringValue(string.value[:-1]),
+        StringValue(string.value[-1]),
+    ]
 
 ###### Index
 

@@ -117,6 +117,11 @@ class StringValue(DataValue[str]):
     def __len__(self) -> int:
         return len(self._value)
 
+    def __contains__(self, item: DataValue) -> bool:
+        if isinstance(item, StringValue):
+            return item._value in self._value
+        return False
+
     def __iter__(self) -> Iterator[StringValue]:
         for ch in self._value:
             yield StringValue(ch)
@@ -138,6 +143,9 @@ class ArrayValue(DataValue[MutableSequence[DataValue]]):
     def __len__(self) -> int:
         return len(self._value)
 
+    def __contains__(self, item: DataValue) -> bool:
+        return item in self._value
+
     def __iter__(self) -> Iterator[DataValue]:
         return iter(self._value)
 
@@ -156,6 +164,35 @@ class ArrayValue(DataValue[MutableSequence[DataValue]]):
     def unpack(self) -> Iterator[Any]:
         for item in self:
             yield item.value
+
+# similar to arrays, but immutable
+class TupleValue(DataValue[Sequence[DataValue]]):
+    name = 'tuple'
+    optype = Operand.Array
+
+    def __init__(self, value: Iterable[DataValue]):
+        super().__init__(tuple(value))
+
+    def format(self) -> str:
+        content = ' '.join(value.format() for value in self.value)
+        return '(' + content + ')'
+
+    def __len__(self) -> int:
+        return len(self._value)
+
+    def __contains__(self, item: DataValue) -> bool:
+        return item in self._value
+
+    def __iter__(self) -> Iterator[DataValue]:
+        return iter(self._value)
+
+    def __getitem__(self, idx: int) -> DataValue:
+        return self._value[idx]
+
+    def unpack(self) -> Iterator[Any]:
+        for item in self:
+            yield item.value
+
 
 class BlockValue(DataValue[Sequence[ScriptSymbol]]):
     name = 'block'
