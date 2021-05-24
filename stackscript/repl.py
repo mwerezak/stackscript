@@ -5,8 +5,9 @@ import readline
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, Optional, MutableSequence
+    from typing import Any, Optional, Iterator, Iterable, MutableSequence
     from stackscript.runtime import ScriptRuntime
+    from stackscript.values import DataValue
 
 class REPL:
     """Provide Read-Evaluate-Print-Loop functionality."""
@@ -26,7 +27,6 @@ class REPL:
         self._exit = False
         self._stdout = stdout or sys.stdout
 
-
     def run(self, intro: Optional[str] = None) -> None:
         self._print(intro or self.intro)
 
@@ -37,13 +37,26 @@ class REPL:
                 continue
 
             ## Evaluate
+            runtime.clear_stack()
             runtime.run_script(stmt)
 
             ## Print
-            for value in runtime.iter_stack():
-                self._print('] ' + value.format())
-            runtime.clear_stack()
+            output = self._format_stack(runtime.iter_stack())
+            output = '\n'.join(output)
+            if output:
+                self._print(output)
 
+    @staticmethod
+    def _format_stack(values: Iterable[DataValue]) -> Iterator[str]:
+        values = list(values)
+        numvalues = len(values)
+        if numvalues == 1:
+            yield '] ' + values[0].format()
+        elif numvalues > 1:
+            fmt_len = len(str(numvalues-1))
+            idxformat = f'[{{:0{fmt_len}}}] '
+            for i, value in enumerate(values):
+                yield idxformat.format(i) + value.format()
 
     def _read_statement(self) -> str:
         """ Read lines from input until a line that ends with the input terminator suffix is read (ignoring whitespace)."""

@@ -12,7 +12,9 @@ from stackscript.values import (
 )
 
 if TYPE_CHECKING:
-    from typing import Any, Optional, Callable, Iterator, Iterable, Mapping, MutableMapping, ChainMap, Deque
+    from typing import (
+        Any, Optional, Callable, Iterator, Iterable, Mapping, MutableMapping, ChainMap, Deque
+    )
     from stackscript.parser import ScriptSymbol
     from stackscript.values import DataValue, BoolValue
 
@@ -138,13 +140,6 @@ class ContextFrame:
             str(value) for value in self.iter_stack_result()
         )
 
-    def format_stack(self) -> str:
-        return '\n'.join(
-            f"[{i}]: {value.format()}"
-            for i, value in enumerate(self.iter_stack())
-        )
-
-
 class ScriptParser:
     """Parse a block of code text into script symbols.
 
@@ -171,15 +166,19 @@ class ScriptRuntime:
     def create_parser(self) -> ScriptParser:
         return ScriptParser(self, self._lexer.clone())
 
-    def get_globals(self) -> Mapping[str, DataValue]:
+    def get_globals(self) -> MutableMapping[str, DataValue]:
         return self.root.get_namespace()
+
+    def iter_stack(self) -> Iterator[DataValue]:
+        return self.root.iter_stack()
+
+    def clear_stack(self) -> None:
+        self.root.clear_stack()
 
     def run_script(self, text: str) -> None:
         parser = ScriptParser(self, self._lexer)
         sym = parser.parse(text)
         self.root.exec(sym)
-
-        print(self.root.format_stack())
 
 
 if __name__ == '__main__':
