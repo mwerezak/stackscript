@@ -6,9 +6,12 @@ from typing import TYPE_CHECKING, NamedTuple
 
 from stackscript.opdefs import Operator, Operand
 from stackscript.parser import Identifier
+from stackscript.exceptions import (
+   ScriptError, ScriptOperandError, ScriptSyntaxError, ScriptIndexError,
+)
 
 from stackscript.values import (
-    DataValue, BoolValue, IntValue, FloatValue, NumberValue, StringValue, ArrayValue, TupleValue, BlockValue
+    DataValue, BoolValue, IntValue, FloatValue, NumberValue, StringValue, ArrayValue, TupleValue, BlockValue,
 )
 
 if TYPE_CHECKING:
@@ -23,11 +26,6 @@ if TYPE_CHECKING:
 # map operator -> signature -> operator data
 OP_REGISTRY: MutableMapping[Operator, MutableMapping[Union[Signature, int], OpHandler]] = defaultdict(dict)
 OP_ARITY: MutableMapping[Operator, int] = defaultdict(int)
-
-class OperandError(Exception):
-    def __init__(self, message: str, *operands: DataValue):
-        self.message = message
-        self.operands = operands
 
 
 class OpHandler(NamedTuple):
@@ -71,9 +69,9 @@ def _search_registery(op: Operator, ctx: ContextFrame) -> OpHandler:
             return opdata
 
         if nargs >= arity:
-            raise OperandError("Invalid operands", *args)
+            raise ScriptOperandError("Invalid operands", *args)
 
-    raise OperandError("not enough operands")
+    raise ScriptOperandError("not enough operands")
 
 def _register_operator(opdata: OpHandler) -> None:
     registry = OP_REGISTRY[opdata.op]
@@ -148,7 +146,7 @@ def operator_unpack(ctx, block):
 @ophandler_typed(Operator.Invert, Operand.Number)
 def operator_invert(ctx, n):
     if not isinstance(n, IntValue):
-        raise OperandError('unsupported operand type', n)
+        raise ScriptOperandError('unsupported operand type', n)
     return [ IntValue(~n.value) ]
 
 ###### Inspect
@@ -164,7 +162,7 @@ def operator_inspect(ctx, o):
 @ophandler_untyped(Operator.Invoke, 2)
 def operator_invoke(ctx: ContextFrame, args, block):
     if not isinstance(block, BlockValue):
-        raise OperandError('unsupported operand type', args, block)
+        raise ScriptOperandError('unsupported operand type', block)
     sub_ctx = ctx.create_child()
     sub_ctx.push_stack(args)
     sub_ctx.exec(block)
@@ -211,15 +209,15 @@ def operator_break(ctx):
 @ophandler_untyped(Operator.Assign, 0)
 def operator_assign(ctx: ContextFrame):
     if ctx.stack_size() < 1:
-        raise OperandError('not enough operands')
+        raise ScriptOperandError('not enough operands')
 
     try:
         identifier = next(ctx.get_symbol_iter())
     except StopIteration:
-        raise OperandError('identifier not found')
+        raise ScriptSyntaxError('identifier not found')
 
     if not isinstance(identifier, Identifier):
-        raise OperandError('cannot assign to a non-identifier')
+        raise ScriptSyntaxError('cannot assign to a non-identifier')
 
     namespace = ctx.get_namespace()
     namespace[identifier.name] = ctx.peek_stack()
@@ -233,17 +231,19 @@ def operator_assign(ctx: ContextFrame):
 def operator_add(ctx, a, b):
     return [BlockValue([*a.value, *b.value])]
 
-# concatenate arrays
+# concatenate arrays/tuples
 @ophandler_typed(Operator.Add, Operand.Array, Operand.Array)
 def operator_add(ctx, a, b):
     if isinstance(a, TupleValue):
-        return[TupleValue(*a, *b)]
+        if isinstance(b, TupleValue):
+            return[TupleValue(*a, *b)]
+        return[ArrayValue(*a, *b)]
 
     if isinstance(a, ArrayValue):
         a.value.extend(b.value)
         return [a]
 
-    raise OperandError('unsupported operand types', a, b)
+    raise ScriptOperandError('unsupported operand types', a, b)
 
 # concatenate strings
 @ophandler_typed(Operator.Add, Operand.String, Operand.String)
@@ -272,7 +272,7 @@ def operator_sub(ctx, a, b):
                 pass
         return [a]
 
-    raise OperandError('unsupported operand types', a, b)
+    raise ScriptOperandError('unsupported operand types', a, b)
 
 @ophandler_typed(Operator.Sub, Operand.Number, Operand.Number)
 def operator_sub(ctx, a, b):
@@ -385,19 +385,19 @@ def operator_bitxor(ctx, a, b):
 @ophandler_typed(Operator.BitAnd, Operand.Number, Operand.Number)
 def operator_bitand(ctx, a, b):
     if not isinstance(a, IntValue) or not isinstance(b, IntValue):
-        raise OperandError("unsupported operand type", a, b)
+        raise ScriptOperandError("unsupported operand type", a, b)
     yield IntValue(a.value & b.value)
 
 @ophandler_typed(Operator.BitOr, Operand.Number, Operand.Number)
 def operator_bitor(ctx, a, b):
     if not isinstance(a, IntValue) or not isinstance(b, IntValue):
-        raise OperandError("unsupported operand type", a, b)
+        raise ScriptOperandError("unsupported operand type", a, b)
     yield IntValue(a.value | b.value)
 
 @ophandler_typed(Operator.BitXor, Operand.Number, Operand.Number)
 def operator_bitxor(ctx, a, b):
     if not isinstance(a, IntValue) or not isinstance(b, IntValue):
-        raise OperandError("unsupported operand type", a, b)
+        raise ScriptOperandError("unsupported operand type", a, b)
     yield IntValue(a.value ^ b.value)
 
 # logical and, or, xor
@@ -418,14 +418,14 @@ def operator_bitxor(ctx, a, b):
 @ophandler_typed(Operator.LShift, Operand.Number, Operand.Number)
 def operator_lshift(ctx, a, shift):
     if not isinstance(a, IntValue) or not isinstance(shift, IntValue):
-        raise OperandError("unsupported operand type", a)
+        raise ScriptOperandError("unsupported operand type", a)
     yield IntValue(a.value << shift.value)
 
 # right shift
 @ophandler_typed(Operator.RShift, Operand.Number, Operand.Number)
 def operator_rshift(ctx, a, shift):
     if not isinstance(a, IntValue) or not isinstance(shift, IntValue):
-        raise OperandError("unsupported operand type", a)
+        raise ScriptOperandError("unsupported operand type", a)
     yield IntValue(a.value >> shift.value)
 
 
@@ -488,7 +488,7 @@ def operator_append(ctx, a, b):
         b.value.insert(0, a)
         return [b]
 
-    raise OperandError("unsupported operand type", a, b)
+    raise ScriptOperandError("unsupported operand type", a, b)
 
 
 ###### Array Decons/Pop
@@ -502,7 +502,7 @@ def operator_decons(ctx, array):
         item = array.value.pop()
         return [array, item]
 
-    raise OperandError("unsupported operand type", array)
+    raise ScriptOperandError("unsupported operand type", array)
 
 
 @ophandler_typed(Operator.Decons, Operand.String)
@@ -518,8 +518,11 @@ def operator_decons(ctx, string):
 @ophandler_typed(Operator.Index, Operand.Array, Operand.Number)
 @ophandler_typed(Operator.Index, Operand.String, Operand.Number)
 def operator_index(ctx, seq, index):
+    if not isinstance(index, IntValue):
+        raise ScriptOperandError("unsupported operand type", seq, index)
+
     if index.value == 0:
-        raise OperandError('invalid index', index)
+        raise ScriptIndexError('0 is not a valid index', seq, index)
 
     ## convert from 1-indexing
     if index.value < 0:
@@ -530,7 +533,7 @@ def operator_index(ctx, seq, index):
     try:
         item = seq.value[i]
     except IndexError:
-        raise OperandError('index out of range', index) from None
+        raise ScriptIndexError('index out of range', seq, index) from None
     return [item]
 
 ###### Size
@@ -555,7 +558,7 @@ def operator_and(ctx: ContextFrame, a, b):
         sub_ctx = ctx.create_child(share_namespace=True)
         sub_ctx.exec(a)
         if sub_ctx.stack_size() != 1:
-            raise OperandError('left expression did not evaluate to a single value', a, b)
+            raise ScriptOperandError('left expression did not evaluate to a single value', a)
         a = sub_ctx.peek_stack()
 
     if not bool(a):
@@ -566,7 +569,7 @@ def operator_and(ctx: ContextFrame, a, b):
         sub_ctx = ctx.create_child(share_namespace=True)
         sub_ctx.exec(b)
         if sub_ctx.stack_size() != 1:
-            raise OperandError('right expression did not evaluate to a single value', a, b)
+            raise ScriptOperandError('right expression did not evaluate to a single value', b)
         b = sub_ctx.peek_stack()
 
     return [b]
@@ -581,7 +584,7 @@ def operator_or(ctx: ContextFrame, a, b):
         sub_ctx = ctx.create_child(share_namespace=True)
         sub_ctx.exec(a)
         if sub_ctx.stack_size() != 1:
-            raise OperandError('left expression did not evaluate to a single value', a, b)
+            raise ScriptOperandError('left expression did not evaluate to a single value', a)
         a = sub_ctx.peek_stack()
 
 
@@ -593,7 +596,7 @@ def operator_or(ctx: ContextFrame, a, b):
         sub_ctx = ctx.create_child(share_namespace=True)
         sub_ctx.exec(b)
         if sub_ctx.stack_size() != 1:
-            raise OperandError('right expression did not evaluate to a single value', a, b)
+            raise ScriptOperandError('right expression did not evaluate to a single value', b)
         b = sub_ctx.peek_stack()
 
     return [b]
@@ -606,7 +609,7 @@ def operator_if(ctx: ContextFrame, cond, if_true, if_false):
         sub_ctx = ctx.create_child(share_namespace=True)
         sub_ctx.exec(cond)
         if sub_ctx.stack_size() != 1:
-            raise OperandError('condition did not evaluate to a single value', cond, if_true, if_false)
+            raise ScriptOperandError('condition did not evaluate to a single value', cond)
         cond = sub_ctx.peek_stack()
 
     result = if_true if bool(cond) else if_false
@@ -635,7 +638,7 @@ def _eval_cond(ctx: ContextFrame, cond: BlockValue) -> bool:
     sub_ctx = ctx.create_child(share_namespace=True)
     sub_ctx.exec(cond)
     if sub_ctx.stack_size() != 1:
-        raise OperandError('condition did not evaluate to a single value', cond)
+        raise ScriptOperandError('condition did not evaluate to a single value', cond)
     return bool(sub_ctx.peek_stack())
 
 if __name__ == '__main__':

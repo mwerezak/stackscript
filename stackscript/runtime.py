@@ -4,8 +4,8 @@ from collections import deque, ChainMap as chainmap
 from typing import TYPE_CHECKING
 
 from stackscript.parser import LiteralType, Lexer, Parser, Identifier, Literal, OperatorSym
-from stackscript.exceptions import ScriptError
-from stackscript.ophandlers import apply_operator, OperandError
+from stackscript.exceptions import ScriptError, ScriptNameError
+from stackscript.ophandlers import apply_operator
 
 from stackscript.values import (
     BoolValue, IntValue, FloatValue, StringValue, ArrayValue, TupleValue, BlockValue
@@ -65,26 +65,26 @@ class ContextFrame:
     def exec(self, prog: Iterable[ScriptSymbol]) -> None:
         self._block = iter(prog)
         for sym in self._block:
-            if isinstance(sym, OperatorSym):
-                self._apply_operator(sym)
-            else:
-                value = self.eval(sym)
-                self.push_stack(value)
+            try:
+                if isinstance(sym, OperatorSym):
+                    apply_operator(self, sym.operator)
+                else:
+                    value = self.eval(sym)
+                    self.push_stack(value)
 
-    def _apply_operator(self, opsym: OperatorSym) -> None:
-        try:
-            apply_operator(self, opsym.operator)
-        except OperandError as err:
-            operands = ', '.join(value.name for value in err.operands)
-            message = f"{err.message}: {operands}"
-            raise ScriptError(message, opsym.meta) from None
+            except ScriptError as err:
+                if err.meta is None:
+                    err.meta = sym.meta
+                if err.ctx is None:
+                    err.ctx = self
+                raise
 
     ## Symbol Evaluation
     def eval(self, sym: ScriptSymbol) -> DataValue:
         if isinstance(sym, Identifier):
             value = self._namespace.get(sym.name)
             if value is None:
-                raise ScriptError(f"could not resolve identifier '{sym.name}'", sym.meta)
+                raise ScriptNameError(f"could not resolve identifier '{sym.name}'", sym.name, meta=sym.meta)
             return value
 
         if isinstance(sym, Literal):
@@ -177,8 +177,13 @@ class ScriptRuntime:
 
     def run_script(self, text: str) -> None:
         parser = ScriptParser(self, self._lexer)
-        sym = parser.parse(text)
-        self.root.exec(sym)
+        try:
+            sym = parser.parse(text)
+            self.root.exec(sym)
+        except ScriptError as err:
+            # TODO return an error data container and let the caller deal with it
+            from traceback import print_exc
+            print_exc()
 
 
 if __name__ == '__main__':

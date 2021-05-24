@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, NamedTuple, Protocol, runtime_checkable
 from ply import lex
 
 from stackscript.opdefs import Operator
-from stackscript.exceptions import ScriptError
+from stackscript.exceptions import ScriptSyntaxError
 
 if TYPE_CHECKING:
     from typing import Any, Union, Optional, Type, Iterator, Iterable, Callable, Mapping
@@ -96,9 +96,10 @@ class Lexer:
 
     # Error handling rule
     def t_error(self, t):
-        # raise ScriptError(f"Illegal character '{t.value[0]}'")
-        print(f"Illegal character '{t.value[0]}'")
-        t.lexer.skip(1)
+        meta = SymbolMeta(t.value, t.lexpos, t.lineno)
+        raise ScriptSyntaxError(f"Illegal character '{t.value[0]}'", meta)
+        # print(f"Illegal character '{t.value[0]}'")
+        # t.lexer.skip(1)
 
     def __init__(self, _copy = None, **kwargs):
         if _copy is not None:
@@ -316,7 +317,7 @@ class Parser:
     def _parse_string(self, tokdata: PrimitiveToken, meta: Any) -> Literal:
         text = tokdata.text
         if text[0] != text[-1] or text[0] not in self._str_delim:
-            raise ScriptError('malformed string', SymbolMeta(**meta))
+            raise ScriptSyntaxError('malformed string', SymbolMeta(**meta))
         return Literal(LiteralType.String, text[1:-1], SymbolMeta(**meta))
 
     # for structured literals, the value is the symbol contents of the literal as an immutable sequence
@@ -328,7 +329,7 @@ class Parser:
     def _parse_delimiter(self, tokens: Iterator[Token], tokdata: DelimiterToken, meta: Any) -> ScriptSymbol:
         end_delim = self._delimiters.get(tokdata.delim)
         if end_delim is None:
-            raise ScriptError(f"found closing delimiter '{tokdata.delim}' without matching start", meta)
+            raise ScriptSyntaxError(f"found closing delimiter '{tokdata.delim}' without matching start", meta)
 
         contents = []
         for token in tokens:
@@ -346,7 +347,7 @@ class Parser:
                 return Literal(literal, tuple(contents), meta)
             raise NotImplementedError('no method to parse token: ' + repr(token))
 
-        raise ScriptError(f"could not find closing delimiter for '{tokdata.delim}'", SymbolMeta(**meta))
+        raise ScriptSyntaxError(f"could not find closing delimiter for '{tokdata.delim}'", SymbolMeta(**meta))
 
 
 if __name__ == '__main__':
