@@ -73,6 +73,7 @@ class REPL:
             return self._dispatch_metacommand(cmd[0], cmd[1:])
         return line
 
+
     def _dispatch_metacommand(self, command, args) -> Optional[str]:
         # shortcut for help
         if command == '?':
@@ -89,16 +90,25 @@ class REPL:
         print(*objects, file=self._stdout)
 
     def _cmd_help(self, args) -> None:
-        """List available commands with '/help' or detailed help with '/help cmd'."""
+        """List available commands with '/help' or detailed help with '/help <cmd>'."""
         if len(args):
             name = args[0]
             fname = '_cmd_' + args[0]
             cmdfunc = getattr(self, fname, None)
-            if cmdfunc is None:
+            if cmdfunc is None or cmdfunc.__doc__ is None:
                 self._print(f"*** No help on '{name}'")
             else:
                 self._print(cmdfunc.__doc__)
             return
+
+        names = [
+            name[len('_cmd_'):]
+            for name in dir(self.__class__)
+            if name.startswith('_cmd_')
+        ]
+        self._print("Available metacommands (type '/help cmd' for details):")
+        for name in names:
+            self._print(self.cmd_prefix + name)
 
     def _cmd_quit(self, args) -> None:
         """Quit the interpreter."""
