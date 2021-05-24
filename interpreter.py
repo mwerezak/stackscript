@@ -44,14 +44,14 @@ if __name__ == '__main__':
 
     runtime = ScriptRuntime()
 
+    argv = TupleValue(StringValue(str(o)) for o in args.args)
+    runtime.get_globals()['argv'] = argv
+
     if args.file is None:
         repl = REPL(runtime)
         repl.run()
     else:
         script = _load_script(args.file)
-        argv = TupleValue(StringValue(str(o)) for o in args.args)
-        runtime.get_globals()['argv'] = argv
-
         if not args.interactive:
             runtime.run_script(script)
         else:

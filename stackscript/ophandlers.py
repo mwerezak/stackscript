@@ -69,7 +69,7 @@ def _search_registery(op: Operator, ctx: ContextFrame) -> OpHandler:
             return opdata
 
         if nargs >= arity:
-            raise ScriptOperandError("Invalid operands", *args)
+            raise ScriptOperandError("invalid operands", *args)
 
     raise ScriptOperandError("not enough operands")
 

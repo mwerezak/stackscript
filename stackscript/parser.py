@@ -48,8 +48,8 @@ class OperatorToken(NamedTuple):
 
 class PrimitiveLiteral(Enum):
     Bool    = r'true|false'
-    Integer = r'[+-]?[0-9]+(?!\.)'
-    Float   = r'[+-]?([0-9]+\.?[0-9]*|[0-9]*\.?[0-9]+)'
+    Integer = r'[+-]?[0-9]+(?!\.)(?![a-zA-Z_])'
+    Float   = r'[+-]?([0-9]+\.?[0-9]*|[0-9]*\.?[0-9]+)(?![a-zA-Z_])'
     String  = r'\'.*?\'|".*?"'
 
     def __repr__(self) -> str:
@@ -97,7 +97,7 @@ class Lexer:
     # Error handling rule
     def t_error(self, t):
         meta = SymbolMeta(t.value, t.lexpos, t.lineno)
-        raise ScriptSyntaxError(f"Illegal character '{t.value[0]}'", meta)
+        raise ScriptSyntaxError('invalid syntax', meta)
         # print(f"Illegal character '{t.value[0]}'")
         # t.lexer.skip(1)
 
