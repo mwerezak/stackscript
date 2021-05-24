@@ -12,10 +12,6 @@ if TYPE_CHECKING:
 class REPL:
     """Provide Read-Evaluate-Print-Loop functionality."""
 
-    intro = (
-        'Script interpreter interactive mode.\n'
-        'Type /help or /? to list metacommands.\n'
-    )
     prompt_default   = '>>> '
     prompt_multiline = '... '
     input_term = ';'
@@ -24,6 +20,12 @@ class REPL:
     _inputlines: MutableSequence[str]
     def __init__(self, runtime: ScriptRuntime, *, stdout: Any = None):
         self.runtime = runtime
+        self.intro = (
+            "Script interpreter interactive mode.\n"
+            "Type /help or /? to list metacommands.\n"
+            f"Enter expressions followed by '{self.input_term}'"
+        )
+        
         self._exit = False
         self._stdout = stdout or sys.stdout
         self._autoclear = True
@@ -43,11 +45,11 @@ class REPL:
 
         while not self._exit:
             ## Read
-            stmt = self._read_statement()
+            expr = self._read_expression()
 
             ## Evaluate
-            if stmt:
-                self.runtime.run_script(stmt)
+            if expr:
+                self.runtime.run_script(expr)
 
             ## Print
             output = self._format_stack(self.runtime.iter_stack())
@@ -71,7 +73,7 @@ class REPL:
             for i, value in enumerate(values):
                 yield idxformat.format(i) + value.format()
 
-    def _read_statement(self) -> str:
+    def _read_expression(self) -> str:
         """ Read lines from input until a line that ends with the input terminator suffix is read (ignoring whitespace)."""
         inputlines = []
 
@@ -157,11 +159,3 @@ class REPL:
             self._print(f"*** Invalid argument '{arg}'")
         else:
             self._autoclear = options[arg]
-
-
-if __name__ == '__main__':
-    from stackscript.runtime import ScriptRuntime
-    rt = ScriptRuntime()
-    repl = REPL(rt)
-    repl.run()
-
