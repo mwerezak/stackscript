@@ -9,7 +9,8 @@ from stackscript.repl import REPL
 from stackscript.values import TupleValue, StringValue
 
 if TYPE_CHECKING:
-    pass
+    from typing import Iterable
+    from stackscript.values import DataValue
 
 cli = ArgumentParser(
     description = 'Stack-based script interpreter.',
@@ -21,11 +22,23 @@ cli.add_argument(
     help = 'enter interactive mode after running script',
     dest = 'interactive',
 )
-
 cli.add_argument(
+    '-d',
+    action = 'store_true',
+    help = 'print contents of stack on exit',
+    dest = 'dump_stack',
+)
+
+input_group = cli.add_mutually_exclusive_group()
+input_group.add_argument(
+    '-c',
+    help = 'program passed in as string at command line',
+    metavar = 'cmd',
+    dest = 'cmd',
+)
+input_group.add_argument(
     'file',
     nargs = '?',
-    default = None,
     help = 'read program from script file',
 )
 
@@ -47,13 +60,21 @@ if __name__ == '__main__':
     argv = TupleValue(StringValue(str(o)) for o in args.args)
     runtime.get_globals()['argv'] = argv
 
-    if args.file is None:
+    script = None
+    if args.cmd is not None:
+        script = args.cmd
+    elif args.file is not None:
+        script = _load_script(args.file)
+
+    if script is None:
         repl = REPL(runtime)
         repl.run()
+    elif args.interactive:
+        repl = REPL(runtime)
+        repl.run(script)
     else:
-        script = _load_script(args.file)
-        if not args.interactive:
-            runtime.run_script(script)
-        else:
-            repl = REPL(runtime)
-            repl.run(script)
+        runtime.run_script(script)
+
+    if args.dump_stack:
+        dump = '\n'.join(runtime.format_stack())
+        print(dump)

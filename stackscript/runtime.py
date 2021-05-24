@@ -140,6 +140,21 @@ class ContextFrame:
             str(value) for value in self.iter_stack_result()
         )
 
+    def format_stack(self, *,
+                     fmt: str = '{{idx:0{idxlen}}}: {{value}}',
+                     fmt_single: Optional[str] = None) -> Iterator[str]:
+
+        values = list(self.iter_stack())
+        numvalues = len(values)
+        if numvalues == 1 and fmt_single is not None:
+            fmt = fmt_single
+
+        idxlen = len(str(numvalues))
+        fmt = fmt.format(idxlen=idxlen)
+        for idx, value in enumerate(values):
+            yield fmt.format(idx=idx+1, value=value)
+
+
 class ScriptParser:
     """Parse a block of code text into script symbols.
 
@@ -185,6 +200,8 @@ class ScriptRuntime:
             from traceback import print_exc
             print_exc()
 
+    def format_stack(self, **kwargs: Any) -> Iterator[str]:
+        return self.root.format_stack(**kwargs)
 
 if __name__ == '__main__':
     tests = [

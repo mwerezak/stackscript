@@ -16,6 +16,8 @@ class REPL:
     prompt_multiline = '... '
     input_term = ';'
     cmd_prefix = '/' # prefix for REPL metacommands
+    fmtstack = '[{{idx:0{idxlen}}}] {{value}}'
+    fmtstack_single = '] {{value}}'
 
     _inputlines: MutableSequence[str]
     def __init__(self, runtime: ScriptRuntime, *, stdout: Any = None):
@@ -30,6 +32,7 @@ class REPL:
         self._stdout = stdout or sys.stdout
         self._autoclear = True
 
+
     def run(self, script: Optional[str] = None, *, intro: Optional[str] = None) -> None:
         self._exit = False
 
@@ -38,10 +41,7 @@ class REPL:
         else:
             self._autoclear = False
             self.runtime.run_script(script)
-            output = self._format_stack(self.runtime.iter_stack())
-            output = '\n'.join(output)
-            if output:
-                self._print(output)
+            self._print_stack()
 
         while not self._exit:
             ## Read
@@ -52,26 +52,17 @@ class REPL:
                 self.runtime.run_script(expr)
 
             ## Print
-            output = self._format_stack(self.runtime.iter_stack())
-            output = '\n'.join(output)
-            if output:
-                self._print(output)
+            self._print_stack()
 
             ## Prepare for next loop
             if self._autoclear:
                 self.runtime.clear_stack()
 
-    @staticmethod
-    def _format_stack(values: Iterable[DataValue]) -> Iterator[str]:
-        values = list(values)
-        numvalues = len(values)
-        if numvalues == 1:
-            yield '] ' + values[0].format()
-        elif numvalues > 1:
-            fmt_len = len(str(numvalues-1))
-            idxformat = f'[{{:0{fmt_len}}}] '
-            for i, value in enumerate(values):
-                yield idxformat.format(i) + value.format()
+    def _print_stack(self) -> str:
+        output = self.runtime.format_stack(fmt=self.fmtstack, fmt_single=self.fmtstack_single)
+        output = '\n'.join(output)
+        if output:
+            self._print(output)
 
     def _read_expression(self) -> str:
         """ Read lines from input until a line that ends with the input terminator suffix is read (ignoring whitespace)."""
