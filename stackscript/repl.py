@@ -26,25 +26,38 @@ class REPL:
         self.runtime = runtime
         self._exit = False
         self._stdout = stdout or sys.stdout
+        self._autoclear = True
 
-    def run(self, intro: Optional[str] = None) -> None:
-        self._print(intro or self.intro)
+    def run(self, script: Optional[str] = None, *, intro: Optional[str] = None) -> None:
+        self._exit = False
+
+        if script is None:
+            self._print(intro or self.intro)
+        else:
+            self._autoclear = False
+            self.runtime.run_script(script)
+            output = self._format_stack(self.runtime.iter_stack())
+            output = '\n'.join(output)
+            if output:
+                self._print(output)
 
         while not self._exit:
             ## Read
             stmt = self._read_statement()
-            if not stmt:
-                continue
 
             ## Evaluate
-            runtime.clear_stack()
-            runtime.run_script(stmt)
+            if stmt:
+                self.runtime.run_script(stmt)
 
             ## Print
-            output = self._format_stack(runtime.iter_stack())
+            output = self._format_stack(self.runtime.iter_stack())
             output = '\n'.join(output)
             if output:
                 self._print(output)
+
+            ## Prepare for next loop
+            if self._autoclear:
+                self.runtime.clear_stack()
 
     @staticmethod
     def _format_stack(values: Iterable[DataValue]) -> Iterator[str]:
@@ -111,7 +124,8 @@ class REPL:
             if cmdfunc is None or cmdfunc.__doc__ is None:
                 self._print(f"*** No help on '{name}'")
             else:
-                self._print(cmdfunc.__doc__)
+                doc = '\n'.join(s.strip() for s in cmdfunc.__doc__.splitlines())
+                self._print(doc)
             return
 
         names = [
@@ -127,10 +141,27 @@ class REPL:
         """Quit the interpreter."""
         self._exit = True
 
+    def _cmd_clear(self, args) -> None:
+        """Clear the eval stack."""
+        self.runtime.clear_stack()
+
+    def _cmd_autoclear(self, args) -> None:
+        """Enable/disable clearing of the eval stack with '/clearstack <on|off>."""
+        if not len(args):
+            self._print('on' if self._autoclear else 'off')
+            return
+
+        options = {'on': True, 'off': False }
+        arg = args[0]
+        if arg not in options:
+            self._print(f"*** Invalid argument '{arg}'")
+        else:
+            self._autoclear = options[arg]
+
 
 if __name__ == '__main__':
     from stackscript.runtime import ScriptRuntime
-    runtime = ScriptRuntime()
-    repl = REPL(runtime)
+    rt = ScriptRuntime()
+    repl = REPL(rt)
     repl.run()
 
