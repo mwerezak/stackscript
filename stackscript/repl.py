@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import sys
+# noinspection PyUnresolvedReferences
 import readline
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, Optional, Iterator, Iterable, MutableSequence
+    from typing import Any, Optional, MutableSequence
     from stackscript.runtime import ScriptRuntime
-    from stackscript.values import DataValue
 
 class REPL:
     """Provide Read-Evaluate-Print-Loop functionality."""
@@ -58,7 +58,7 @@ class REPL:
             if self._autoclear:
                 self.runtime.clear_stack()
 
-    def _print_stack(self) -> str:
+    def _print_stack(self) -> None:
         output = self.runtime.format_stack(fmt=self.fmtstack, fmt_single=self.fmtstack_single)
         output = '\n'.join(output)
         if output:

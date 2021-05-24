@@ -9,8 +9,7 @@ from stackscript.repl import REPL
 from stackscript.values import TupleValue, StringValue
 
 if TYPE_CHECKING:
-    from typing import Iterable
-    from stackscript.values import DataValue
+    pass
 
 cli = ArgumentParser(
     description = 'Stack-based script interpreter.',
