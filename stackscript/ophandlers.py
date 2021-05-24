@@ -518,7 +518,20 @@ def operator_decons(ctx, string):
 @ophandler_typed(Operator.Index, Operand.Array, Operand.Number)
 @ophandler_typed(Operator.Index, Operand.String, Operand.Number)
 def operator_index(ctx, seq, index):
-    return [seq[index.value]]
+    if index.value == 0:
+        raise OperandError('invalid index', index)
+
+    ## convert from 1-indexing
+    if index.value < 0:
+        i = index.value
+    else:
+        i = index.value - 1
+
+    try:
+        item = seq.value[i]
+    except IndexError:
+        raise OperandError('index out of range', index) from None
+    return [item]
 
 ###### Size
 
