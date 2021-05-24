@@ -20,56 +20,62 @@ class Operand(Enum):
 
 
 class OperatorInfo(NamedTuple):
+    operator: str
     pattern: str
 
 class Operator(Enum):
-    Invert  = OperatorInfo(r'~')    # bitwise not, array dump
-    Inspect = OperatorInfo(r'`')
-    Invoke  = OperatorInfo(r'!')    # evaluate a block or string and push results onto the stack
+    value: OperatorInfo
+
+    Invert  = OperatorInfo('~', r'~')    # bitwise not, array dump
+    Inspect = OperatorInfo('`', r'`')
+    Invoke  = OperatorInfo('!', r'!')    # evaluate a block or string and push results onto the stack
 
     # Rotate  = OperatorInfo(r'@')    # move the ith stack element to top
-    Dup     = OperatorInfo(r'\.')   # copy the top element. equivalent to 0$
-    Drop    = OperatorInfo(r',')    # remove the top element from the stack
-    Break   = OperatorInfo(r';')    # empty the stack (should this even be an operator?)
+    Dup     = OperatorInfo('.', r'\.')   # copy the top element. equivalent to 0$
+    Drop    = OperatorInfo(',', r',')    # remove the top element from the stack
+    Break   = OperatorInfo(';', r';')    # empty the stack (should this even be an operator?)
 
-    Assign  = OperatorInfo(r':')
+    Assign  = OperatorInfo(':', r':')
 
-    Add     = OperatorInfo(r'\+(?!\+)')   # add, concat
-    Sub     = OperatorInfo(r'-')    # subtract, set diff
-    Mul     = OperatorInfo(r'\*(?!\*)')   # mult, block execute times, array repeat
-    Div     = OperatorInfo(r'/')    # div, split, split in groups of size, unfold, each
-    Mod     = OperatorInfo(r'%')    # mod, map, every ith element, clean split
-    Pow     = OperatorInfo(r'\*\*')
+    Add     = OperatorInfo('+',  r'\+(?!\+)')   # add, concat
+    Sub     = OperatorInfo('-',  r'-')    # subtract, set diff
+    Mul     = OperatorInfo('*',  r'\*(?!\*)')   # mult, block execute times, array repeat
+    Div     = OperatorInfo('/',  r'/')    # div, split, split in groups of size, unfold, each
+    Mod     = OperatorInfo('%',  r'%')    # mod, map, every ith element, clean split
+    Pow     = OperatorInfo('**', r'\*\*')
 
-    BitOr   = OperatorInfo(r'\|')   # bitwise/setwise or
-    BitAnd  = OperatorInfo(r'&')    # bitwise/setwise and
-    BitXor  = OperatorInfo(r'\^')   # bitwise/setwise xor
-    LShift  = OperatorInfo(r'<<')
-    RShift  = OperatorInfo(r'>>')
+    BitOr   = OperatorInfo('|',  r'\|')   # bitwise/setwise or
+    BitAnd  = OperatorInfo('&',  r'&')    # bitwise/setwise and
+    BitXor  = OperatorInfo('^',  r'\^')   # bitwise/setwise xor
+    LShift  = OperatorInfo('<<', r'<<')
+    RShift  = OperatorInfo('>>', r'>>')
 
-    LT      = OperatorInfo(r'<(?![<=])') # less than, elements less than index
-    LE      = OperatorInfo(r'<=')     # less than or equal to
-    GT      = OperatorInfo(r'>(?![>=])') # greater than, elements greater than or equal to index
-    GE      = OperatorInfo(r'>=')     # greater than or equal to
-    NE      = OperatorInfo(r'~=')
-    Equal   = OperatorInfo(r'=')      # equal to, element at index
+    LT      = OperatorInfo('<',  r'<(?![<=])') # less than, elements less than index
+    LE      = OperatorInfo('<=', r'<=')     # less than or equal to
+    GT      = OperatorInfo('>',  r'>(?![>=])') # greater than, elements greater than or equal to index
+    GE      = OperatorInfo('>=', r'>=')     # greater than or equal to
+    NE      = OperatorInfo('~=', r'~=')
+    Equal   = OperatorInfo('=',  r'=')      # equal to, element at index
 
-    Append  = OperatorInfo(r'\+\+')   # array add/concat
-    Decons  = OperatorInfo(r'--')     # array remove/diff
-    Index   = OperatorInfo(r'\$')     # take the i-th element from an array or string
-    Size    = OperatorInfo(r'\#')
+    Append  = OperatorInfo('++', r'\+\+')   # array add/concat
+    Decons  = OperatorInfo('--', r'--')     # array remove/diff
+    Index   = OperatorInfo('$',  r'\$')     # take the i-th element from an array or string
+    Size    = OperatorInfo('#',  r'\#')
 
-    Not     = OperatorInfo(r'not')
-    And     = OperatorInfo(r'and')
-    Or      = OperatorInfo(r'or')
+    Not     = OperatorInfo('not', r'not')
+    And     = OperatorInfo('and', r'and')
+    Or      = OperatorInfo('or',  r'or')
 
-    If      = OperatorInfo(r'if')
-    Do      = OperatorInfo(r'do')
-    While   = OperatorInfo(r'while')
+    If      = OperatorInfo('if',    r'if')
+    Do      = OperatorInfo('do',    r'do')
+    While   = OperatorInfo('while', r'while')
 
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__qualname__}.{self.name}>'
+
+    def __str__(self) -> str:
+        return self.value.operator
 
     @property
     def pattern(self) -> str:
