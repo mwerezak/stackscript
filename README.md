@@ -11,6 +11,13 @@ I plan to replace it with a simple regex-based lexer, as I'm not really doing an
 
 At the end of this readme is an operator reference.
 
+## Usage
+Python 3.8+ required.
+
+At the command prompt, run `python interpreter.py`.
+
+Or run `python interpreter.py --help` for command line options.
+
 ## TODO
 - A proper name
 - Actually load script files or run as a REPL.
