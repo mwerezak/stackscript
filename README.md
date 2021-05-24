@@ -172,7 +172,7 @@ Note that certain operators are *overloaded* and so may appear multiple times in
 ### Blocks
 | operator    | name        | arity  |  effect
 | ----------- | ----------- | ------ | -------
-| ~           | execute     | 1      | Execute the block in the current scope.
+| ~           | unpack      | 1      | "Unpack" a block by executing it in the current scope.
 | !           | invoke      | 2      | Takes an argument and a block, and executes the block in a new scope where the argument is the sole element of the stack. 
 | /           | map         | 2      | Operates on a block and a list. Apply a block to each element of a list, producing a new list.
 | %           | fold        | 2      | Operates on a block and a list. For each element in a list, push the element onto the stack then apply the block to the stack.
@@ -181,7 +181,7 @@ Note that certain operators are *overloaded* and so may appear multiple times in
 ### Lists
 | operator    | name        | arity  |  effect
 | ----------- | ----------- | ------ | -------
-| ~           | dump        | 1      | Replace a list with its contents. Each item in the list is pushed onto the stack.
+| ~           | unpack      | 1      | Replace a list with its contents. Each item in the list is pushed onto the stack.
 | #           | length      | 1      | Produce the size of the list
 | $           | index       | 2      | Operates on a list and an integer. Replaces both with the n-th item in the list.
 | ++          | cons/append | 2      | Takes a list and another value, and inserts/appends the value into the list, then pushes the list back onto the stack.
@@ -195,7 +195,7 @@ Note that certain operators are *overloaded* and so may appear multiple times in
 ### Strings
 | operator    | name        | arity  |  effect
 | ----------- | ----------- | ------ | -------
-| ~           | dump        | 1      | Replace a string, pushing a sequence of strings, each containing a single character from the original, onto the stack.
+| ~           | unpack      | 1      | Replace a string, pushing a sequence of strings, each containing a single character from the original, onto the stack.
 | #           | length      | 1      | Produce the length of the string.
 | $           | index       | 2      | Operates on a string and an integer. Replaces both with a string containing just the n-th character.
 | +           | concat      | 2      | Concatentate two strings.

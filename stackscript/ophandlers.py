@@ -128,6 +128,8 @@ class _ReorderFunc(NamedTuple):
 
 ## Operator Definitions
 
+###### General Operators
+
 ###### Invert
 
 # "dump" the array or string onto the stack
