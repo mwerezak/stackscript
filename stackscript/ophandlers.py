@@ -187,9 +187,15 @@ def operator_invoke(ctx, text):
 
 ###### Dup
 
-@ophandler_untyped(Operator.Dup, 1)
-def operator_dup(ctx, o):
-    return [o, o]
+@ophandler_untyped(Operator.Dup, 0)
+def operator_dup(ctx: ContextFrame):
+    if ctx.stack_size() > 0:
+        return ctx.peek_stack()
+
+    if ctx.parent is None:
+        raise ScriptOperandError('not enough operands')
+    return [ctx.parent.peek_stack()]
+
 
 ###### Drop
 
@@ -311,18 +317,18 @@ def operator_div(ctx, a, b):
     yield NumberValue(a.value / b.value)
 
 # map. execute a block over all elements, producing an array.
-@ophandler_permute(Operator.Div, Operand.Block, Operand.Array)
-@ophandler_permute(Operator.Div, Operand.Block, Operand.String)
-def operator_div(ctx: ContextFrame, block, seq):
-    ctor = TupleValue if isinstance(seq, TupleValue) else ArrayValue
-
-    result = []
-    for item in seq:
-        sub_ctx = ctx.create_child()
-        sub_ctx.push_stack(item)
-        sub_ctx.exec(block)
-        result.extend(sub_ctx.iter_stack_result())
-    return [ctor(result)]
+# @ophandler_permute(Operator.Div, Operand.Block, Operand.Array)
+# @ophandler_permute(Operator.Div, Operand.Block, Operand.String)
+# def operator_div(ctx: ContextFrame, block, seq):
+#     ctor = TupleValue if isinstance(seq, TupleValue) else ArrayValue
+#
+#     result = []
+#     for item in seq:
+#         sub_ctx = ctx.create_child()
+#         sub_ctx.push_stack(item)
+#         sub_ctx.exec(block)
+#         result.extend(sub_ctx.iter_stack_result())
+#     return [ctor(result)]
 
 
 ###### Mod
@@ -331,14 +337,14 @@ def operator_div(ctx: ContextFrame, block, seq):
 def operator_mod(ctx, a, b):
     yield NumberValue(a.value % b.value)
 
-# execute a block over all elements directly in the current context
-@ophandler_permute(Operator.Mod, Operand.Block, Operand.Array)
-@ophandler_permute(Operator.Mod, Operand.Block, Operand.String)
-def operator_mod(ctx: ContextFrame, block, seq):
-    for item in seq:
-        ctx.push_stack(item)
-        ctx.exec(block)
-    return ()
+# fold
+# @ophandler_permute(Operator.Mod, Operand.Block, Operand.Array)
+# @ophandler_permute(Operator.Mod, Operand.Block, Operand.String)
+# def operator_mod(ctx: ContextFrame, block, seq):
+#     for item in seq:
+#         ctx.push_stack(item)
+#         ctx.exec(block)
+#     return ()
 
 
 ###### Pow

@@ -31,7 +31,7 @@ class Operator(Enum):
     Invoke  = OperatorInfo('!', r'!')    # evaluate a block or string and push results onto the stack
 
     # Rotate  = OperatorInfo(r'@')    # move the ith stack element to top
-    Dup     = OperatorInfo('.', r'\.')   # copy the top element. equivalent to 0$
+    Dup     = OperatorInfo('..', r'\.\.')   # copy the top element.
     Drop    = OperatorInfo(',', r',')    # remove the top element from the stack
     Break   = OperatorInfo(';', r';')    # empty the stack (should this even be an operator?)
 
