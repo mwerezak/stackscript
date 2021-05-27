@@ -266,14 +266,14 @@ if __name__ == '__main__':
 
     tests = [
         """
-        {~ .. * 1 -}: sqrsub1;
+        {~ .. * 1- }: sqrsub1;
         
         {
-            ~ .. 0 <= 
+            .. 0 <= 
             {; 1}
-            {.. 1- 1<< factorial! *} if
+            {.. 1- factorial% *} if
         }: factorial;
-        (5)factorial|sqrsub1!
+        5 factorial| sqrsub1%
         """,
         """ 2 4 'a' 8 [2] 'c' 5<< """,
     ]

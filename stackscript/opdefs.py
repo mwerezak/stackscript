@@ -28,7 +28,7 @@ class Operator(Enum):
 
     Invert  = OperatorInfo('~', r'~')    # bitwise not, array dump
     Inspect = OperatorInfo('`', r'`')
-    Invoke  = OperatorInfo('!', r'!')
+    Eval    = OperatorInfo('!', r'!')
 
     # Rotate  = OperatorInfo(r'@')    # move the ith stack element to top
     Dup     = OperatorInfo('..', r'\.\.')   # copy the top element.

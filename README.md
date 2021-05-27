@@ -71,9 +71,8 @@ Also any names that are assigned inside the block remain local to the block. All
 An example, calculating the factorial:
 
     >>> {
-    ...     .. 0 > { (.. 1-) factorial! * } { ;1 } if  // ternary if
+    ...     .. 0 > { .. 1- factorial! * } { ;1 } if  // ternary if
     ... }: factorial;
-    ...
     >>> 5 factorial!
     ] 120
 
@@ -86,11 +85,14 @@ except that the result of invoking the block are collected into a single tuple.
 
     >>> (x y) somefunc | anotherfunc!
 
-Using the `!` may necessitate working with lists and tuples.
+Using the `!` may necessitate working with lists and tuples, so some support for that is built in.
 
-The unpack operator `~` will take a list or tuple and push its contents onto the stack.
+The unpack operator `~` will take a list or tuple and push its contents onto the stack. The pack operator `<<` will take an integer and collect that many items from the stack into a new tuple.
 
-The indexing operator `$` that replaces a list and an integer with the n-th item in the list. Indices start at 1.
+    >>> 'a' 'b' 'c' 3<<
+    ('a' 'b' 'c')
+
+The indexing operator `$` replaces a list and an integer with the n-th item in the list. Indices start at 1.
 
     >>> ['a' 'b' 'c' 'd' 'e'] 2$
     ] 'b'

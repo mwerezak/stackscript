@@ -150,17 +150,19 @@ def operator_inspect(ctx, o) -> Iterable[DataValue]:
     yield StringValue(o.format())
 
 
-###### Call
+###### Eval
 
-# invoke a block, giving it the top item on the stack
-@ophandler_untyped(Operator.Invoke, 2)
-def operator_invoke(ctx: ContextFrame, arg, block) -> Iterable[DataValue]:
-    if not isinstance(block, BlockValue):
-        raise ScriptOperandError('unsupported operand type', block)
-    sub_ctx = ctx.create_child()
-    sub_ctx.push_stack(arg)
-    sub_ctx.exec(block)
-    yield from sub_ctx.iter_stack_result()
+# "unpack" a block by executing it in the current context
+@ophandler_typed(Operator.Eval, Operand.Block)
+def operator_eval(ctx, block) -> Iterable[DataValue]:
+    ctx.exec(block)
+    return ()
+
+# evaluate a string directly in the current context
+@ophandler_typed(Operator.Eval, Operand.String)
+def operator_eval(ctx, text) -> Iterable[DataValue]:
+    ctx.execs(text.value)
+    return ()
 
 
 ###### Rotate
@@ -321,17 +323,15 @@ def operator_div(ctx, a, b) -> Iterable[DataValue]:
 
 ###### Mod
 
-# "unpack" a block by executing it in the current context
-@ophandler_typed(Operator.Mod, Operand.Block)
-def operator_eval(ctx, block) -> Iterable[DataValue]:
-    ctx.exec(block)
-    return ()
-
-# evaluate a string directly in the current context
-@ophandler_typed(Operator.Mod, Operand.String)
-def operator_eval(ctx, text) -> Iterable[DataValue]:
-    ctx.execs(text.value)
-    return ()
+# invoke a block, giving it the top item on the stack
+@ophandler_untyped(Operator.Mod, 2)
+def operator_invoke(ctx: ContextFrame, arg, block) -> Iterable[DataValue]:
+    if not isinstance(block, BlockValue):
+        raise ScriptOperandError('unsupported operand type', block)
+    sub_ctx = ctx.create_child()
+    sub_ctx.push_stack(arg)
+    sub_ctx.exec(block)
+    yield from sub_ctx.iter_stack_result()
 
 @ophandler_typed(Operator.Mod, Operand.Number, Operand.Number)
 def operator_mod(ctx, a, b) -> Iterable[DataValue]:
