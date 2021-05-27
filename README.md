@@ -2,14 +2,12 @@
 
 This an interpreter for an unnamed stack-based scripting language.
 
-The interpreter is implemented in Python and very much incomplete. The whole project is a personal experiment. 
-
-See the bottom of `stackscript/runtime.py` for example of usage. Or just run `python -m stackscript.runtime` from the repository root to see some examples.
+The interpreter is implemented in Python and is incomplete. The whole project is a personal experiment. 
 
 Also included is a slightly modified version of PLY which I am using as the lexer. 
 I plan to replace it with a simple regex-based lexer, as I'm not really doing anything fancy.
 
-At the end of this readme is an operator reference.
+At the bottom of this readme is a complete operator reference. I might cut down on the number of operators once I implement some built-in functions.
 
 ## Usage
 Python 3.8+ required.
@@ -20,9 +18,9 @@ Or run `python interpreter.py --help` for command line options.
 
 ## TODO
 - A proper name
-- Actually load script files or run as a REPL.
 - Prelude mechanism, so that a standard library of builtin names can be loaded into the global scope.
 - A dictionary or mapping type.
+- Come up with a way to import scripts into other scripts.
 
 ## About the Language
 
@@ -54,59 +52,56 @@ I also want to add a Lua-inspired "table" mapping type that also supports Lua-st
 Like Lua I plan to have a small closed set of types. I think you can do a lot with just lists, tables, and primitives.
 
 Now, back to the "block" type. Blocks are containers that contain unexecuted code. These are very similar to "quotations" in Factor.
+Blocks are just values, so you can put them in lists, pass them when invoking another block, etc.
 
-Blocks can be evaluated using either the invoke operator `/`, or the evaluate operator `!`. 
+Blocks can be applied using either the invoke operator `!`, or the evaluate operator `%`. 
 
-The `!` operator is the simplest, it just applies the contents of the block to the stack.
+The evaluate `%` operator is the simplest, it just applies the contents of the block to the stack.
 
     >>> {.. *}: sqr;  // can be assigned to names, like any other value
     ...
-    >>> 5 sqr!
+    >>> 5 sqr%
     ] 25
+    >>> '2 2 +'%  // can also evaluate strings
+    ] 4
 
-Unlike `!`, the invoke operator `/` executes the block in a new "scope".
+Unlike `%`, the invoke operator `!` executes the block in a new "scope". This means that only the top item on the parent stack is visible to the inside of the block.
+Also any names that are assigned inside the block remain local to the block. All the results of invoking a block are added back to the parent stack.
 
-
-    >>> (1 2) twoargs/
-
-...
-
-    >>> {1 +}: add1;
-    ...
-    >>> 5 sqr/ add1/
-    ] 26
-
-Blocks are just values, so you can put them in lists, pass them when invoking another block, etc.
-
-Another example, calculating the factorial.
+An example, calculating the factorial:
 
     >>> {
     ...     .. 0 > { (.. 1-) factorial! * } { ;1 } if  // ternary if
     ... }: factorial;
     ...
-    >>> (5) factorial/
+    >>> 5 factorial!
     ] 120
 
-There's an indexing operator `$` that replaces a list and an integer with the n-th item in the list.
+To invoke a block with more than one value, an argument list or tuple can be used.
 
-    >>> ['a' 'b' 'c'] 1$
-    ] 'a'
+    >>> (1 2) twoargs!
 
-As well, I plan to add multiple assignment syntax for lists and tuples to make handling argument lists convenient.
+To pass multiple results from one block directly into another, the composition operator `|` can be used. This operator actually functions just like `!`, 
+except that the result of invoking the block are collected into a single tuple.
 
-    >>> {
-    ...     :(first second third);
-    ...
-    ...     third first + second *
-    ...
-    ... }: example;
-    ...
-    >>> [3 4 5] example/
-    ] 32
+    >>> (x y) somefunc | anotherfunc!
 
+Using the `!` may necessitate working with lists and tuples.
 
+The unpack operator `~` will take a list or tuple and push its contents onto the stack.
 
-I imagine named arguments could be accomodated Lua-style by passing a single table as the argument.
+The indexing operator `$` that replaces a list and an integer with the n-th item in the list. Indices start at 1.
+
+    >>> ['a' 'b' 'c' 'd' 'e'] 2$
+    ] 'b'
+
+As well, I plan to add multiple assignment syntax for lists and tuples to make handling argument lists even more convenient.
+
+    >>> [ 'aaa' 'bbb' 'ccc' ]: stuff;
+    >>> stuff: {thing1 thing2 thing3};
+    >>> thing3
+    ] 'ccc'
+
 
 ## Operator Reference
 
