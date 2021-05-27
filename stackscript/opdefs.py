@@ -28,7 +28,7 @@ class Operator(Enum):
 
     Invert  = OperatorInfo('~', r'~')    # bitwise not, array dump
     Inspect = OperatorInfo('`', r'`')
-    Invoke  = OperatorInfo('!', r'!')    # evaluate a block or string and push results onto the stack
+    Invoke  = OperatorInfo('!', r'!')
 
     # Rotate  = OperatorInfo(r'@')    # move the ith stack element to top
     Dup     = OperatorInfo('..', r'\.\.')   # copy the top element.
@@ -40,8 +40,8 @@ class Operator(Enum):
     Add     = OperatorInfo('+',  r'\+(?!\+)')   # add, concat
     Sub     = OperatorInfo('-',  r'-')    # subtract, set diff
     Mul     = OperatorInfo('*',  r'\*(?!\*)')   # mult, block execute times, array repeat
-    Div     = OperatorInfo('/',  r'/')    # div, split, split in groups of size, unfold, each
-    Mod     = OperatorInfo('%',  r'%')    # mod, map, every ith element, clean split
+    Div     = OperatorInfo('/',  r'/')    # div, compose
+    Mod     = OperatorInfo('%',  r'%')    # mod, eval
     Pow     = OperatorInfo('**', r'\*\*')
 
     BitOr   = OperatorInfo('|',  r'\|')   # bitwise/setwise or
@@ -57,10 +57,11 @@ class Operator(Enum):
     NE      = OperatorInfo('~=', r'~=')
     Equal   = OperatorInfo('=',  r'=')      # equal to, element at index
 
-    Append  = OperatorInfo('++', r'\+\+')   # insert element into array
-    Decons  = OperatorInfo('--', r'--')     #
+    # Append  = OperatorInfo('++', r'\+\+')   # insert element into array
+    # Decons  = OperatorInfo('--', r'--')     #
     Index   = OperatorInfo('$',  r'\$')     # take the i-th element from an array or string
     Size    = OperatorInfo('#',  r'\#')
+    Collect = OperatorInfo('<<', r'<<')
 
     Not     = OperatorInfo('not', r'not')
     And     = OperatorInfo('and', r'and')

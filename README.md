@@ -39,11 +39,11 @@ Anyways, more about the language itself (still yet to be named):
 Naturally since it is stack-based all expressions are RPN.
 
     >>> 3 2 * 4 +
-    10
+    ] 10
 
 You can assign values to identifiers using the assignment operator `:`.
 
-    [1 2 3 'a' 'b' 'c']: mylist
+    >>> [1 2 3 'a' 'b' 'c']: mylist
 
 Right now the available data types are booleans, integers, floats, strings, lists, and blocks. The block type is really important so I will get back to that later.
 
@@ -53,94 +53,58 @@ I also want to add a Lua-inspired "table" mapping type that also supports Lua-st
 
 Like Lua I plan to have a small closed set of types. I think you can do a lot with just lists, tables, and primitives.
 
-Now, back to the "block" type. Blocks are immutable containers that contain unexecuted code. This part of the language is inspired by GolfScript.
+Now, back to the "block" type. Blocks are containers that contain unexecuted code. These are very similar to "quotations" in Factor.
 
-Blocks can be invoked using the "invoke" operator `!`. This operator pops two values off of the stack, a block and a single argument value.
+Blocks can be evaluated using either the invoke operator `/`, or the evaluate operator `!`. 
 
-    >>> 4 { 1+ }!  // adds 1 to the argument
-    5
+The `!` operator is the simplest, it just applies the contents of the block to the stack.
 
-If you assign a block to an identifier, you can use them like functions.
+    >>> {.. *}: sqr;  // can be assigned to names, like any other value
+    ...
+    >>> 5 sqr!
+    ] 25
 
-    {.*}: sqr;  // duplicates the argument, then multiplies 
-                // semicolon just clears the stack, helpful for avoiding accidents
-    4 sqr!
+Unlike `!`, the invoke operator `/` executes the block in a new "scope".
+
+
+    >>> (1 2) twoargs/
+
+...
+
+    >>> {1 +}: add1;
+    ...
+    >>> 5 sqr/ add1/
+    ] 26
 
 Blocks are just values, so you can put them in lists, pass them when invoking another block, etc.
 
-When the `!` operator is used the block operand is executed in a new "scope" where the argument is the only value on the stack.
-
-This done is for programmer sanity. However, for efficiency, no new stack needs to be created. Instead, a "stack protection" pointer can be used that raises an error if the interpreter tries to pop values beyond it (pretending that the stack is empty). When the block is done executing this pointer can then be cleared.
-
-Identifiers are local to their scope though, so the interpreter still needs to allocate a data structure for that.
-
 Another example, calculating the factorial.
 
-```
-{
-    :n; // assign the argument to the name "n"
-    // "if" will pop 3 items from the stack, like a ternary operator
-    n 0 <=
-    1
-    { n 1- factorial! n * } if
-}: factorial;
+    >>> {
+    ...     .. 0 > { (.. 1-) factorial! * } { ;1 } if  // ternary if
+    ... }: factorial;
+    ...
+    >>> (5) factorial/
+    ] 120
 
-// alternatively
-{
-    . 0 > {. 1- factorial! *} {;1} if
-}: factorial;
-
-5 factorial!
-```
-
-When functions require multiple arguments an argument list can be passed.
-
-    [1 2 'a'] foo!
-
-In addition to the evaluate operator `!`, there are two other operators that act on blocks: map `/` and fold `%`.
-
-Both take two operands, a block and a list.
-
-The map operator `/` invokes a block on every element of a list and produces a new list from the results.
-
-    >>> [2 3 4 5] {.*}/
-    [4 9 16 25]
-
-Unlike `!` or `/`, the fold operator `%` does not execute the block in a new scope. Instead, for each item in the list operand, `%` will push the item onto the stack and then evaluate the block directly in the current scope.
-
-    >>> 0 [2 3 1 5] {+}%  // sum a list of values
-    11
-
-Of course you can wrap the `%` expression in a block for safety.
-
-```
-// a sum "function"
-{
-    :seq; // assign the sole argument to the name "seq"
-    0 seq {+}%
-}: sum;
-
-[2 3 1 5] sum!
-```
-
-Last thing, about handling argument lists. There's an indexing operator `$` that replaces a list and an integer with the n-th item in the list.
+There's an indexing operator `$` that replaces a list and an integer with the n-th item in the list.
 
     >>> ['a' 'b' 'c'] 1$
-    'a'
+    ] 'a'
 
-This combined with the stack manipulation operators `.` (duplicate) and `,` (drop) allow you to assign positional arguments to local identifiers in a way that looks really nice.
+As well, I plan to add multiple assignment syntax for lists and tuples to make handling argument lists convenient.
 
-```
-{
-    .$1: first,
-    .$2: second,
-    .$3: third;  // you could put these on one line if you want
+    >>> {
+    ...     :(first second third);
+    ...
+    ...     third first + second *
+    ...
+    ... }: example;
+    ...
+    >>> [3 4 5] example/
+    ] 32
 
-    first second + third *
-}: add_then_mult;
 
-[3 4 5] add_then_mult!
-```
 
 I imagine named arguments could be accomodated Lua-style by passing a single table as the argument.
 
@@ -173,29 +137,27 @@ Note that certain operators are *overloaded* and so may appear multiple times in
 | \|          | bitwise or  | 2      | What you'd expect. Operates on two integers.
 | &           | bitwise and | 2      | Ditto.
 | ^           | bitwise xor | 2      | Ditto.
-| <<          | left shift  | 2      | Ditto.
-| >>          | right shift | 2      | Ditto.
+
+Note: left and right bitshifts will be built-in functions, rather than having dedicated operators.
 
 ### Blocks
 | operator    | name        | arity  |  effect
 | ----------- | ----------- | ------ | -------
-| ~           | unpack      | 1      | "Unpack" a block by executing it in the current scope.
-| !           | invoke      | 2      | Takes an argument and a block, and executes the block in a new scope where the argument is the sole element of the stack. 
-| /           | map         | 2      | Operates on a block and a list. Apply a block to each element of a list, producing a new list.
-| %           | fold        | 2      | Operates on a block and a list. For each element in a list, push the element onto the stack then apply the block to the stack.
+| %           | eval        | 1      | Evaluate a block by executing it in the current scope. Stack concatentation, effectively.
+| !           | invoke      | 2      | Takes an argument and a block, and executes the block in a new scope where the argument is the only visible element of the stack, then concatenates the results with the outer stack.
+| \|          | compose     | 2      | Like call, except the results of executing the block are collected into a tuple.
 | +           | concat      | 2      | Concatenate two blocks, producing a new block.
 
-### Lists
+### Lists/Tuples
 | operator    | name        | arity  |  effect
 | ----------- | ----------- | ------ | -------
 | ~           | unpack      | 1      | Replace a list with its contents. Each item in the list is pushed onto the stack.
+| <<          | collection  | 1      | Operates on an integer and collects the next n items on the stack into a tuple.
 | #           | length      | 1      | Produce the size of the list
 | $           | index       | 2      | Operates on a list and an integer. Replaces both with the n-th item in the list (starting at 1).
-| ++          | cons/append | 2      | Takes a list and another value, and inserts/appends the value into the list, then pushes the list back onto the stack.
-| --          | decons      | 1      | Takes a list, removes the last value and then pushes them both back onto the stack (list followed by value).
 | +           | concat      | 2      | Concatentate two lists.
 | -           | difference  | 2      | Remove all items present in the second list from the first list, then push the first list back onto the stack.
-| |           | union       | 2      | Replace two lists with their setwise union.
+| \|          | union       | 2      | Replace two lists with their setwise union.
 | &           | intersection | 2      | Replace two lists with their setwise intersection.
 | ^           | symmetric difference | 2      | Replace two lists with their setwise symmetric difference.
 
@@ -203,6 +165,7 @@ Note that certain operators are *overloaded* and so may appear multiple times in
 | operator    | name        | arity  |  effect
 | ----------- | ----------- | ------ | -------
 | ~           | unpack      | 1      | Replace a string, pushing a sequence of strings, each containing a single character from the original, onto the stack.
+| %           | eval        | 1      | Evaluate a string as script code.
 | #           | length      | 1      | Produce the length of the string.
 | $           | index       | 2      | Operates on a string and an integer. Replaces both with a string containing just the n-th character (starting at 1).
 | +           | concat      | 2      | Concatentate two strings.

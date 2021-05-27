@@ -33,13 +33,13 @@ _compound_literals: Mapping[LiteralType, Callable[[Any], DataValue]] = {
 }
 
 class ContextFrame:
-    _stack: Deque[DataValue]
+    _stack: Deque[DataValue]  # index 0 is the TOP
     _namespace: ChainMap[str, DataValue]
     _block: Iterator[ScriptSymbol] = None
     def __init__(self, runtime: ScriptRuntime, parent: Optional[ContextFrame], share_namespace: bool = False):
         self.runtime = runtime
         self.parent = parent
-        self._stack = deque()  # index 0 is the TOP
+        self._stack = deque()
 
         if parent is None:
             self._namespace = chainmap()
@@ -96,7 +96,7 @@ class ContextFrame:
             # compound literals
             ctor = _compound_literals.get(sym.type)
             if ctor is not None:
-                array_ctx = self.create_child()
+                array_ctx = self.create_child(share_namespace=True)
                 array_ctx.exec(sym.value)
                 return ctor(array_ctx.iter_stack_result())
 
@@ -197,8 +197,9 @@ class ScriptRuntime:
             self.root.exec(sym)
         except ScriptError as err:
             # TODO return an error data container and let the caller deal with it
-            from traceback import print_exc
-            print_exc()
+            # from traceback import print_exc
+            # print_exc()
+            raise
 
     def format_stack(self, **kwargs: Any) -> Iterator[str]:
         return self.root.format_stack(**kwargs)
@@ -208,23 +209,23 @@ if __name__ == '__main__':
         """1 1+ """,
         """ [ 1 2 3 - 4 5 6 7 + ] """,
         """ 'c' ['a' 'b'] ++ """,
-        """ -1 5 * { [ 'step' ] ++ }! """,
+        """ -1 5 * { [ 'step' ] ++ }!! """,
         """ [ 3 2]  [ 1 'b' { 'c' 'd' } ] """,
         """ [ 1 'b' [ 3 2 ]`  { 'c' 'd' } ]`  """,
-        """ [] { -1 5 * [ 'step' ] ++ }! """,
-        """ [ 1 '2 3 -'! 4 5 6 7 + ] """,
+        """ [] { -1 5 * [ 'step' ] ++ }!! """,
+        """ [ 1 '2 3 -'!! 4 5 6 7 + ] """,
         """ [1 2 3 4 5 6] 2$ """,
         # """ 1 2 3 4 5 6 2@ """,
         """ 'str' 3 * 2 ['a' 'b' 'c'] *""",
         # """ 1 2 3 4 5 6 ,,, [] { 1@ + } 3* . # """,
-        """ [ 1 2 3 ] {2*}/ ~ """,
+        """ [ 1 2 3 ] {2*}! ~ """,
         # """ [] [ 1 2 3 ] {2* 1@ +}% """,
         """ [1 2 3 4 5 6] [2 4 5] -""",
-        """ [7 6; 5 4 3 2 1] {3 <=}/ 0 false = """,
-        """ [ 1 2 3 ] {2*}/ . [ 2 4 6 ] = """,
+        # """ [7 6; 5 4 3 2 1] {3 <=} map 0 false = """,
+        """ [ 1 2 3 ] {2*}! .. [ 2 4 6 ] = """,
         """ [ 1 3 4 ] [ 7 3 1 2 ] | """,
-        """ [ 1 3 4 ] [ 7 3 1 2 ] & """,
-        """ [ 1 3 4 ] [ 7 3 1 2 ] ^ """,
+        """ [ 1 3 4 ] ( 7 3 1 2 ) & """,
+        """ ( 1 3 4 ) ( 7 3 1 2 ) ^ """,
         """ 'a' not """,
         """ 'abc': mystr; [mystr mystr mystr] """,
         """
@@ -239,9 +240,9 @@ if __name__ == '__main__':
         """,
         """
         {
-            . 0 = 
+            .. 0 = 
             {;1}
-            {. 1- factorial! *} if
+            {.. 1- factorial! *} if
         }: factorial;
         5 factorial!
         """,
@@ -257,18 +258,29 @@ if __name__ == '__main__':
         # """ 1 2 3 4 5 6 2@ """,
         """ 'str' 3 * 2 ('a' 'b' 'c') *""",
         # """ 1 2 3 4 5 6 ,,, [] { 1@ + } 3* . # """,
-        """ ( 1 2 3 ) {2*}/ ~ """,
+        """ ( 1 2 3 ) {2*}! ~ """,
         # """ [] [ 1 2 3 ] {2* 1@ +}% """,
         """ (1 2 3 4 5 6) [2 4 5] -""",
-        """ [7 6; 5 4 3 2 1] {3 <=}/ 0 false = """,
-        """ ( 1 2 3 ) {2*}/ . [ 2 4 6 ] = """,
-        """ ( 1 3 4 ) ( 7 3 1 2 ) | """,
-        """ ( 1 3 4 ) [ 7 3 1 2 ] & """,
-        """ ( 1 3 4 ) ( 7 3 1 2 ) ^ """,
+        # """ ( 1 2 3 ) {2*} map!! .. [ 2 4 6 ] = """,
+    ]
+
+    tests = [
+        """
+        {~ .. * 1 -}: sqrsub1;
+        
+        {
+            ~ .. 0 <= 
+            {; 1}
+            {.. 1- 1<< factorial! *} if
+        }: factorial;
+        (5)factorial|sqrsub1!
+        """,
+        """ 2 4 'a' 8 [2] 'c' 5<< """,
     ]
 
     for test in tests:
         print('>>>', test)
         rt = ScriptRuntime()
         rt.run_script(test)
+        print('\n'.join(rt.format_stack()))
 
