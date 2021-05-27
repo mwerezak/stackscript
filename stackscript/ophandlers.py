@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import itertools
 from collections import defaultdict
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple, Iterable
 
 from stackscript.opdefs import Operator, Operand
-from stackscript.parser import Identifier
+from stackscript.parser import Identifier, Literal, LiteralType
 from stackscript.exceptions import (
    ScriptError, ScriptOperandError, ScriptSyntaxError, ScriptIndexError,
 )
@@ -15,7 +15,8 @@ from stackscript.values import (
 )
 
 if TYPE_CHECKING:
-    from typing import Any, Union, Callable, Iterable, Sequence, MutableMapping
+    from typing import Any, Union, Callable, Sequence, MutableMapping
+    from stackscript.parser import ScriptSymbol
     from stackscript.runtime import ContextFrame
     from stackscript.values import DataValue
 
@@ -208,16 +209,39 @@ def operator_assign(ctx: ContextFrame) -> Iterable[DataValue]:
         raise ScriptOperandError('not enough operands')
 
     try:
-        identifier = next(ctx.get_symbol_iter())
+        next_sym = next(ctx.get_symbol_iter())
     except StopIteration:
-        raise ScriptSyntaxError('identifier not found')
+        raise ScriptSyntaxError('invalid syntax')
 
-    if not isinstance(identifier, Identifier):
-        raise ScriptSyntaxError('cannot assign to a non-identifier')
-
+    value = ctx.peek_stack()
     namespace = ctx.get_namespace()
-    namespace[identifier.name] = ctx.peek_stack()
-    return ()
+    if isinstance(next_sym, Identifier):
+        namespace[next_sym.name] = value
+        return ()
+
+    # multiple assignment
+    if isinstance(next_sym, Literal):
+        if _check_multiple_assignment(value, next_sym):
+            # noinspection PyTypeChecker
+            names, values = next_sym.value, list(value)
+            nnames, nvalues = len(names), len(values)
+            if nvalues != nnames:
+                msg = 'not enough' if nvalues < nnames else 'too many'
+                raise ScriptError(f'{msg} values to unpack (expected {nnames}, got {nvalues})')
+            for identifier, o in zip(next_sym.value, values):
+                namespace[identifier.name] = o
+            return ()
+
+    raise ScriptSyntaxError('assignment is only allowed with an identifier, or a block literal containing only identifiers')
+
+def _check_multiple_assignment(value: DataValue, target: ScriptSymbol) -> bool:
+    if not isinstance(value, Iterable) or not isinstance(target, Literal):
+        return False
+    if target.type != LiteralType.Block:
+        return False
+    if not all(isinstance(sym, Identifier) for sym in target.value):
+        return False
+    return True
 
 
 ###### Add

@@ -275,7 +275,7 @@ if __name__ == '__main__':
         }: factorial;
         5 factorial| sqrsub1%
         """,
-        """ 2 4 'a' 8 [2] 'c' 5<< """,
+        """ 2 4 'a' 8 [2] 'c' 3<<: {thing1 thing2 thing3}; thing1 """,
     ]
 
     for test in tests:
