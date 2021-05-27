@@ -57,8 +57,8 @@ class Operator(Enum):
     NE      = OperatorInfo('~=', r'~=')
     Equal   = OperatorInfo('=',  r'=')      # equal to, element at index
 
-    Append  = OperatorInfo('++', r'\+\+')   # array add/concat
-    Decons  = OperatorInfo('--', r'--')     # array remove/diff
+    Append  = OperatorInfo('++', r'\+\+')   # insert element into array
+    Decons  = OperatorInfo('--', r'--')     #
     Index   = OperatorInfo('$',  r'\$')     # take the i-th element from an array or string
     Size    = OperatorInfo('#',  r'\#')
 

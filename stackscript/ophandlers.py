@@ -15,12 +15,12 @@ from stackscript.values import (
 )
 
 if TYPE_CHECKING:
-    from typing import Any, Union, Callable, Iterator, Sequence, MutableMapping
+    from typing import Any, Union, Callable, Iterable, Sequence, MutableMapping
     from stackscript.runtime import ContextFrame
     from stackscript.values import DataValue
 
     Signature = Sequence[Operand]
-    OperatorFunc = Callable[[ContextFrame, ...], Iterator[DataValue]]
+    OperatorFunc = Callable[[ContextFrame, ...], Iterable[DataValue]]
 
 
 # map operator -> signature -> operator data
@@ -133,34 +133,34 @@ class _ReorderFunc(NamedTuple):
 # "unpack" the array or string onto the stack
 @ophandler_typed(Operator.Invert, Operand.Array)
 @ophandler_typed(Operator.Invert, Operand.String)
-def operator_unpack(ctx, seq):
+def operator_unpack(ctx, seq) -> Iterable[DataValue]:
     yield from seq
 
 # "unpack" a block by executing it in the current context
 @ophandler_typed(Operator.Invert, Operand.Block)
-def operator_unpack(ctx, block):
+def operator_unpack(ctx, block) -> Iterable[DataValue]:
     ctx.exec(block)
     return ()
 
 # bitwise not
 @ophandler_typed(Operator.Invert, Operand.Number)
-def operator_invert(ctx, n):
+def operator_invert(ctx, n) -> Iterable[DataValue]:
     if not isinstance(n, IntValue):
         raise ScriptOperandError('unsupported operand type', n)
-    return [ IntValue(~n.value) ]
+    yield IntValue(~n.value)
 
 ###### Inspect
 
 @ophandler_untyped(Operator.Inspect, 1)
-def operator_inspect(ctx, o):
-    return [ StringValue(o.format()) ]
+def operator_inspect(ctx, o) -> Iterable[DataValue]:
+    yield StringValue(o.format())
 
 
 ###### Invoke
 
 # invoke a block, giving it the top item on the stack
 @ophandler_untyped(Operator.Invoke, 2)
-def operator_invoke(ctx: ContextFrame, args, block):
+def operator_invoke(ctx: ContextFrame, args, block) -> Iterable[DataValue]:
     if not isinstance(block, BlockValue):
         raise ScriptOperandError('unsupported operand type', block)
     sub_ctx = ctx.create_child()
@@ -170,7 +170,7 @@ def operator_invoke(ctx: ContextFrame, args, block):
 
 # evaluate a string directly in the current context
 @ophandler_typed(Operator.Invoke, Operand.String)
-def operator_invoke(ctx, text):
+def operator_invoke(ctx, text) -> Iterable[DataValue]:
     ctx.execs(text.value)
     return ()
 
@@ -188,9 +188,9 @@ def operator_invoke(ctx, text):
 ###### Dup
 
 @ophandler_untyped(Operator.Dup, 0)
-def operator_dup(ctx: ContextFrame):
+def operator_dup(ctx: ContextFrame) -> Iterable[DataValue]:
     if ctx.stack_size() > 0:
-        return ctx.peek_stack()
+        return [ctx.peek_stack()]
 
     if ctx.parent is None:
         raise ScriptOperandError('not enough operands')
@@ -200,7 +200,7 @@ def operator_dup(ctx: ContextFrame):
 ###### Drop
 
 @ophandler_untyped(Operator.Drop, 1)
-def operator_drop(ctx, value):
+def operator_drop(ctx, value) -> Iterable[DataValue]:
     return ()  # no-op, just drop the value
 
 ###### Break
@@ -213,7 +213,7 @@ def operator_break(ctx):
 ###### Assignment
 
 @ophandler_untyped(Operator.Assign, 0)
-def operator_assign(ctx: ContextFrame):
+def operator_assign(ctx: ContextFrame) -> Iterable[DataValue]:
     if ctx.stack_size() < 1:
         raise ScriptOperandError('not enough operands')
 
@@ -234,16 +234,16 @@ def operator_assign(ctx: ContextFrame):
 
 # concatenate blocks
 @ophandler_typed(Operator.Add, Operand.Block, Operand.Block)
-def operator_add(ctx, a, b):
-    return [BlockValue([*a.value, *b.value])]
+def operator_add(ctx, a, b) -> Iterable[DataValue]:
+    yield BlockValue([*a.value, *b.value])
 
 # concatenate arrays/tuples
 @ophandler_typed(Operator.Add, Operand.Array, Operand.Array)
-def operator_add(ctx, a, b):
+def operator_add(ctx, a, b) -> Iterable[DataValue]:
     if isinstance(a, TupleValue):
         if isinstance(b, TupleValue):
             return[TupleValue(*a, *b)]
-        return[ArrayValue(*a, *b)]
+        return [ArrayValue(*a, *b)]
 
     if isinstance(a, ArrayValue):
         a.value.extend(b.value)
@@ -253,20 +253,20 @@ def operator_add(ctx, a, b):
 
 # concatenate strings
 @ophandler_typed(Operator.Add, Operand.String, Operand.String)
-def operator_add(ctx, a, b):
-    return [StringValue(a.value + b.value)]
+def operator_add(ctx, a, b) -> Iterable[DataValue]:
+    yield StringValue(a.value + b.value)
 
 # add numbers
 @ophandler_typed(Operator.Add, Operand.Number, Operand.Number)
-def operator_add(ctx, a, b):
-    return [NumberValue(a.value + b.value)]
+def operator_add(ctx, a, b) -> Iterable[DataValue]:
+    yield NumberValue(a.value + b.value)
 
 
 ###### Sub
 
 # array difference
 @ophandler_typed(Operator.Sub, Operand.Array, Operand.Array)
-def operator_sub(ctx, a, b):
+def operator_sub(ctx, a, b) -> Iterable[DataValue]:
     if isinstance(a, TupleValue):
         return [TupleValue(item for item in a if item not in b)]
 
@@ -281,39 +281,39 @@ def operator_sub(ctx, a, b):
     raise ScriptOperandError('unsupported operand types', a, b)
 
 @ophandler_typed(Operator.Sub, Operand.Number, Operand.Number)
-def operator_sub(ctx, a, b):
+def operator_sub(ctx, a, b) -> Iterable[DataValue]:
     yield NumberValue(a.value - b.value)
 
 ###### Mul
 
 # execute a block a certain number of times in the current context
 @ophandler_permute(Operator.Mul, Operand.Number, Operand.Block)
-def operator_mul(ctx, repeat, block):
+def operator_mul(ctx, repeat, block) -> Iterable[DataValue]:
     for i in range(repeat.value):
         ctx.exec(block)
     return ()
 
 # array/string repeat
 @ophandler_permute(Operator.Mul, Operand.Number, Operand.Array)
-def operator_mul(ctx, repeat, array):
+def operator_mul(ctx, repeat, array) -> Iterable[DataValue]:
     ctor = type(array)
-    return [ctor( data for data in array for i in range(repeat.value) )]
+    yield ctor( data for data in array for i in range(repeat.value) )
 
 # array/string repeat
 @ophandler_permute(Operator.Mul, Operand.Number, Operand.String)
-def operator_mul(ctx, repeat, text):
+def operator_mul(ctx, repeat, text) -> Iterable[DataValue]:
     text = ''.join(text.value for i in range(repeat.value))
     yield StringValue(text)
 
 @ophandler_typed(Operator.Mul, Operand.Number, Operand.Number)
-def operator_mul(ctx, a, b):
+def operator_mul(ctx, a, b) -> Iterable[DataValue]:
     yield NumberValue(a.value * b.value)
 
 
 ###### Div
 
 @ophandler_typed(Operator.Div, Operand.Number, Operand.Number)
-def operator_div(ctx, a, b):
+def operator_div(ctx, a, b) -> Iterable[DataValue]:
     yield NumberValue(a.value / b.value)
 
 # map. execute a block over all elements, producing an array.
@@ -334,7 +334,7 @@ def operator_div(ctx, a, b):
 ###### Mod
 
 @ophandler_typed(Operator.Mod, Operand.Number, Operand.Number)
-def operator_mod(ctx, a, b):
+def operator_mod(ctx, a, b) -> Iterable[DataValue]:
     yield NumberValue(a.value % b.value)
 
 # fold
@@ -350,13 +350,13 @@ def operator_mod(ctx, a, b):
 ###### Pow
 
 @ophandler_typed(Operator.Pow, Operand.Number, Operand.Number)
-def operator_pow(ctx, a, b):
+def operator_pow(ctx, a, b) -> Iterable[DataValue]:
     yield NumberValue(a.value ** b.value)
 
 
 ###### Bitwise Or/And/Xor
 
-def _array_ctor(*operands):
+def _sequence_coerce(*operands):
     for o in operands:
         if isinstance(o, ArrayValue):
             return ArrayValue
@@ -364,72 +364,72 @@ def _array_ctor(*operands):
 
 # setwise or (union), and (intersection), xor (symmetric difference)
 @ophandler_typed(Operator.BitOr, Operand.Array, Operand.Array)
-def operator_bitor(ctx, a, b):
+def operator_bitor(ctx, a, b) -> Iterable[DataValue]:
     union = set(a)
     union.update(b)
 
-    ctor = _array_ctor(a, b)
+    ctor = _sequence_coerce(a, b)
     yield ctor(union)
 
 @ophandler_typed(Operator.BitAnd, Operand.Array, Operand.Array)
-def operator_bitand(ctx, a, b):
+def operator_bitand(ctx, a, b) -> Iterable[DataValue]:
     intersect = set(a)
     intersect.intersection_update(b)
 
-    ctor = _array_ctor(a, b)
+    ctor = _sequence_coerce(a, b)
     yield ctor(intersect)
 
 @ophandler_typed(Operator.BitXor, Operand.Array, Operand.Array)
-def operator_bitxor(ctx, a, b):
+def operator_bitxor(ctx, a, b) -> Iterable[DataValue]:
     symdiff = set(a)
     symdiff.symmetric_difference_update(b)
 
-    ctor = _array_ctor(a, b)
+    ctor = _sequence_coerce(a, b)
     yield ctor(symdiff)
 
 # bitwise and, or, xor
 @ophandler_typed(Operator.BitAnd, Operand.Number, Operand.Number)
-def operator_bitand(ctx, a, b):
+def operator_bitand(ctx, a, b) -> Iterable[DataValue]:
     if not isinstance(a, IntValue) or not isinstance(b, IntValue):
         raise ScriptOperandError("unsupported operand type", a, b)
     yield IntValue(a.value & b.value)
 
 @ophandler_typed(Operator.BitOr, Operand.Number, Operand.Number)
-def operator_bitor(ctx, a, b):
+def operator_bitor(ctx, a, b) -> Iterable[DataValue]:
     if not isinstance(a, IntValue) or not isinstance(b, IntValue):
         raise ScriptOperandError("unsupported operand type", a, b)
     yield IntValue(a.value | b.value)
 
 @ophandler_typed(Operator.BitXor, Operand.Number, Operand.Number)
-def operator_bitxor(ctx, a, b):
+def operator_bitxor(ctx, a, b) -> Iterable[DataValue]:
     if not isinstance(a, IntValue) or not isinstance(b, IntValue):
         raise ScriptOperandError("unsupported operand type", a, b)
     yield IntValue(a.value ^ b.value)
 
 # logical and, or, xor
 @ophandler_typed(Operator.BitAnd, Operand.Bool, Operand.Bool)
-def operator_bitand(ctx, a, b):
+def operator_bitand(ctx, a, b) -> Iterable[DataValue]:
     yield BoolValue.get_value(a.value & b.value)
 
 @ophandler_typed(Operator.BitOr, Operand.Bool, Operand.Bool)
-def operator_bitor(ctx, a, b):
+def operator_bitor(ctx, a, b) -> Iterable[DataValue]:
     yield BoolValue.get_value(a.value | b.value)
 
 @ophandler_typed(Operator.BitXor, Operand.Bool, Operand.Bool)
-def operator_bitxor(ctx, a, b):
+def operator_bitxor(ctx, a, b) -> Iterable[DataValue]:
     yield BoolValue.get_value(a.value ^ b.value)
 
 
 # left shift
 @ophandler_typed(Operator.LShift, Operand.Number, Operand.Number)
-def operator_lshift(ctx, a, shift):
+def operator_lshift(ctx, a, shift) -> Iterable[DataValue]:
     if not isinstance(a, IntValue) or not isinstance(shift, IntValue):
         raise ScriptOperandError("unsupported operand type", a)
     yield IntValue(a.value << shift.value)
 
 # right shift
 @ophandler_typed(Operator.RShift, Operand.Number, Operand.Number)
-def operator_rshift(ctx, a, shift):
+def operator_rshift(ctx, a, shift) -> Iterable[DataValue]:
     if not isinstance(a, IntValue) or not isinstance(shift, IntValue):
         raise ScriptOperandError("unsupported operand type", a)
     yield IntValue(a.value >> shift.value)
@@ -438,38 +438,38 @@ def operator_rshift(ctx, a, shift):
 ###### Logical Comparison
 
 @ophandler_typed(Operator.LT, Operand.Number, Operand.Number)
-def operator_lt(ctx, a, b):
+def operator_lt(ctx, a, b) -> Iterable[DataValue]:
     yield BoolValue.get_value(a < b)
 
 @ophandler_typed(Operator.LE, Operand.Number, Operand.Number)
-def operator_le(ctx, a, b):
+def operator_le(ctx, a, b) -> Iterable[DataValue]:
     yield BoolValue.get_value(a <= b)
 
 @ophandler_typed(Operator.GT, Operand.Number, Operand.Number)
-def operator_gt(ctx, a, b):
+def operator_gt(ctx, a, b) -> Iterable[DataValue]:
     yield BoolValue.get_value(a > b)
 
 @ophandler_typed(Operator.GE, Operand.Number, Operand.Number)
-def operator_ge(ctx, a, b):
+def operator_ge(ctx, a, b) -> Iterable[DataValue]:
     yield BoolValue.get_value(a >= b)
 
 ###### Equality
 
 @ophandler_untyped(Operator.Equal, 2)
-def operator_equal(ctx, a, b):
-    return [BoolValue.get_value(a == b)]
+def operator_equal(ctx, a, b) -> Iterable[DataValue]:
+    yield BoolValue.get_value(a == b)
 
 @ophandler_untyped(Operator.NE, 2)
-def operator_ne(ctx, a, b):
-    return [BoolValue.get_value(a != b)]
+def operator_ne(ctx, a, b) -> Iterable[DataValue]:
+    yield BoolValue.get_value(a != b)
 
 @ophandler_typed(Operator.Equal, Operand.Number, Operand.Number)
-def operator_equal(ctx, a, b):
-    return [BoolValue.get_value(_number_equality(a, b))]
+def operator_equal(ctx, a, b) -> Iterable[DataValue]:
+    yield BoolValue.get_value(_number_equality(a, b))
 
 @ophandler_typed(Operator.NE, Operand.Number, Operand.Number)
-def operator_ne(ctx, a, b):
-    return [BoolValue.get_value(not _number_equality(a, b))]
+def operator_ne(ctx, a, b) -> Iterable[DataValue]:
+    yield BoolValue.get_value(not _number_equality(a, b))
 
 def _number_equality(a: DataValue, b: DataValue):
     if isinstance(a, IntValue) and isinstance(b, IntValue):
@@ -481,7 +481,7 @@ def _number_equality(a: DataValue, b: DataValue):
 # append item to beginning or end of array
 # if both operands are arrays, append the second to the end of the first
 @ophandler_untyped(Operator.Append, 2)
-def operator_append(ctx, a, b):
+def operator_append(ctx, a, b) -> Iterable[DataValue]:
     if isinstance(a, TupleValue):
         return [TupleValue([*a, b])]
     if isinstance(a, ArrayValue):
@@ -500,7 +500,7 @@ def operator_append(ctx, a, b):
 ###### Array Decons/Pop
 
 @ophandler_typed(Operator.Decons, Operand.Array)
-def operator_decons(ctx, array):
+def operator_decons(ctx, array) -> Iterable[DataValue]:
     if isinstance(array, TupleValue):
         values = list(array)
         return [TupleValue(values[:-1]), values[-1]]
@@ -512,7 +512,7 @@ def operator_decons(ctx, array):
 
 
 @ophandler_typed(Operator.Decons, Operand.String)
-def operator_decons(ctx, string):
+def operator_decons(ctx, string) -> Iterable[DataValue]:
     return [
         StringValue(string.value[:-1]),
         StringValue(string.value[-1]),
@@ -523,7 +523,7 @@ def operator_decons(ctx, string):
 # replace the array or string with the i-th element
 @ophandler_typed(Operator.Index, Operand.Array, Operand.Number)
 @ophandler_typed(Operator.Index, Operand.String, Operand.Number)
-def operator_index(ctx, seq, index):
+def operator_index(ctx, seq, index) -> Iterable[DataValue]:
     if not isinstance(index, IntValue):
         raise ScriptOperandError("unsupported operand type", seq, index)
 
@@ -546,19 +546,19 @@ def operator_index(ctx, seq, index):
 
 @ophandler_typed(Operator.Size, Operand.Array)
 @ophandler_typed(Operator.Size, Operand.String)
-def operator_size(ctx, seq):
+def operator_size(ctx, seq) -> Iterable[DataValue]:
     yield IntValue(len(seq))
 
 ###### Logical Not
 
 @ophandler_untyped(Operator.Not, 1)
-def operator_not(ctx, a):
+def operator_not(ctx, a) -> Iterable[DataValue]:
     yield BoolValue.get_value(not bool(a))
 
 ###### Short-Circuiting And
 
 @ophandler_untyped(Operator.And, 2)
-def operator_and(ctx: ContextFrame, a, b):
+def operator_and(ctx: ContextFrame, a, b) -> Iterable[DataValue]:
     # left expression
     if isinstance(a, BlockValue):
         sub_ctx = ctx.create_child(share_namespace=True)
@@ -584,7 +584,7 @@ def operator_and(ctx: ContextFrame, a, b):
 ###### Short-Circuiting Or
 
 @ophandler_untyped(Operator.Or, 2)
-def operator_or(ctx: ContextFrame, a, b):
+def operator_or(ctx: ContextFrame, a, b) -> Iterable[DataValue]:
     # left expression
     if isinstance(a, BlockValue):
         sub_ctx = ctx.create_child(share_namespace=True)
@@ -610,7 +610,7 @@ def operator_or(ctx: ContextFrame, a, b):
 ###### Short-Circuiting Ternary-If
 
 @ophandler_untyped(Operator.If, 3)
-def operator_if(ctx: ContextFrame, cond, if_true, if_false):
+def operator_if(ctx: ContextFrame, cond, if_true, if_false) -> Iterable[DataValue]:
     if isinstance(cond, BlockValue):
         sub_ctx = ctx.create_child(share_namespace=True)
         sub_ctx.exec(cond)
@@ -628,14 +628,14 @@ def operator_if(ctx: ContextFrame, cond, if_true, if_false):
 
 # keep executing a block in the current context as long as the top item is true
 @ophandler_typed(Operator.Do, Operand.Block)
-def operator_do(ctx: ContextFrame, block):
+def operator_do(ctx: ContextFrame, block) -> Iterable[DataValue]:
     ctx.exec(block)
     while bool(ctx.pop_stack()):
         ctx.exec(block)
     return ()
 
 @ophandler_typed(Operator.While, Operand.Block, Operand.Block)
-def operator_while(ctx: ContextFrame, cond, body):
+def operator_while(ctx: ContextFrame, cond, body) -> Iterable[DataValue]:
     while _eval_cond(ctx, cond):
         ctx.exec(body)
     return ()
