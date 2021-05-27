@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, NamedTuple, Protocol, runtime_checkable
 
 from ply import lex
 
-from stackscript.opdefs import Operator
+from stackscript.operators.defines import Operator
 from stackscript.exceptions import ScriptSyntaxError
 
 if TYPE_CHECKING:

@@ -113,7 +113,7 @@ Note that certain operators are *overloaded* and so may appear multiple times in
 | operator    | name        | arity  |  effect
 | ----------- | ----------- | ------ | -------
 | \`          | inspect     | 1      | "Quotes" a value, replacing it with a string that when evaluted produces the original value.
-| .           | duplicate   | 1      | Copy the top value on the stack.
+| ..          | duplicate   | 1      | Copy the top value on the stack.
 | ,           | drop        | 1      | Remove the top value from the stack.
 | :&nbsp;\<name\> | assignment  | 1      | Assign the a value to a name, then push it back onto the stack.
 

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from stackscript.parser import LiteralType, Lexer, Parser, Identifier, Literal, OperatorSym
 from stackscript.exceptions import ScriptError, ScriptNameError
-from stackscript.ophandlers import apply_operator
+from stackscript.operators.overloading import apply_operator
 
 from stackscript.values import (
     BoolValue, IntValue, FloatValue, StringValue, ArrayValue, TupleValue, BlockValue
@@ -17,6 +17,12 @@ if TYPE_CHECKING:
     )
     from stackscript.parser import ScriptSymbol
     from stackscript.values import DataValue, BoolValue
+
+## actually load operator overloads
+import stackscript.operators.general
+import stackscript.operators.arithmetic
+import stackscript.operators.sequences
+import stackscript.operators.conditional
 
 
 _simple_literals: Mapping[LiteralType, Callable[[Any], DataValue]] = {
@@ -277,6 +283,10 @@ if __name__ == '__main__':
         """,
         """ 2 4 'a' 8 [2] 'c' 3<<: {thing1 thing2 thing3}; thing1 """,
     ]
+
+    from pprint import pprint
+    from operators.overloading import OP_REGISTRY
+    pprint(OP_REGISTRY)
 
     for test in tests:
         print('>>>', test)

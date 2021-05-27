@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from functools import total_ordering
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, TypeVar, overload
+from typing import TYPE_CHECKING, TypeVar
 
 from typing import Generic, Sequence, MutableSequence  # for generic type declaration
 from stackscript.parser import ScriptSymbol
-from stackscript.opdefs import Operand
+from stackscript.operators.defines import Operand
 
 if TYPE_CHECKING:
     from typing import Any, Iterator, Iterable, ClassVar
@@ -77,6 +77,9 @@ class IntValue(DataValue[int]):
     name = 'int'
     optype = Operand.Number
 
+    def __init__(self, value: Any):
+        super().__init__(int(value))
+
     def format(self) -> str:
         return str(self._value)
 
@@ -88,28 +91,22 @@ class FloatValue(DataValue[float]):
     name = 'float'
     optype = Operand.Number
 
+    def __init__(self, value: Any):
+        super().__init__(float(value))
+
     def format(self) -> str:
         return str(self._value)
 
     def __lt__(self, other: DataValue) -> bool:
         return self._value < other.value
 
-@overload
-def NumberValue(value: int) -> IntValue: ...
-
-@overload
-def NumberValue(value: float) -> FloatValue: ...
-
-def NumberValue(value):
-    """overloaded constructor that will create IntValue or FloatValue as appropriate"""
-    if isinstance(value, int):
-        return IntValue(value)
-    return FloatValue(value)
-
 
 class StringValue(DataValue[str]):
     name = 'string'
     optype = Operand.String
+
+    def __init__(self, value: Iterable[DataValue]):
+        super().__init__(str(value))
 
     def format(self) -> str:
         return repr(self._value)
