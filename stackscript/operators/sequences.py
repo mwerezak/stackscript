@@ -53,7 +53,7 @@ def operator_index(ctx: ContextFrame, seq, index) -> Iterable[DataValue]:
         return [IndexValue(seq, index)]
 
     try:
-        item = seq[index.as_index()]
+        item = seq[index]
     except IndexError:
         raise ScriptIndexError('index out of range', seq, index) from None
     return [item]
