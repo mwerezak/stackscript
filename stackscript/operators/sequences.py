@@ -83,7 +83,7 @@ def operator_size(ctx, seq) -> Iterable[DataValue]:
 @ophandler_typed(Operator.Add, Operand.Array, Operand.Array)
 def operator_concat(ctx, a, b) -> Iterable[DataValue]:
     rtype = coerce_array(a, b)
-    return [rtype(*a, *b)]
+    return [rtype([*a, *b])]
 
 # concatenate strings
 @ophandler_typed(Operator.Add, Operand.String, Operand.String)

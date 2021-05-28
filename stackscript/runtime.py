@@ -312,6 +312,16 @@ if __name__ == '__main__':
         }: find_idx;
         
         [1 2 3 4 5 6 7 8] 3 2>> find_idx%
+        """,
+        """
+        {
+            2>>: {array block};
+            []: result; 1: idx;
+            { idx array# <= } {; result array idx$ block| +: result; idx 1+: idx} while;
+            result 
+        }: map;
+        
+        [1 2 3 4 5] {.. *} map!
         """
     ]
 
