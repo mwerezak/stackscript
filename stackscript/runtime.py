@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import deque, ChainMap as chainmap
 from typing import TYPE_CHECKING
 
-from stackscript import ContextFlags
+from stackscript import CtxFlags
 from stackscript.parser import LiteralType, Lexer, Parser, Identifier, Literal, OperatorSym
 from stackscript.exceptions import ScriptError, ScriptNameError
 from stackscript.operators.overloading import apply_operator
@@ -23,12 +23,12 @@ if TYPE_CHECKING:
         Any, Optional, Callable, Iterator, Iterable, Mapping, MutableMapping, ChainMap, Deque
     )
     from stackscript.parser import ScriptSymbol
-    from stackscript.values import DataValue, BoolValue
+    from stackscript.values import ScriptValue, BoolValue
 
 
 
 
-_simple_literals: Mapping[LiteralType, Callable[[Any], DataValue]] = {
+_simple_literals: Mapping[LiteralType, Callable[[Any], ScriptValue]] = {
     LiteralType.Bool    : BoolValue.get_value,
     LiteralType.Integer : IntValue,
     LiteralType.Float   : FloatValue,
@@ -36,16 +36,16 @@ _simple_literals: Mapping[LiteralType, Callable[[Any], DataValue]] = {
     LiteralType.Block   : BlockValue,
 }
 
-_compound_literals: Mapping[LiteralType, Callable[[Any], DataValue]] = {
+_compound_literals: Mapping[LiteralType, Callable[[Any], ScriptValue]] = {
     LiteralType.Array : ArrayValue,
     LiteralType.Tuple : TupleValue,
 }
 
 class ContextFrame:
-    _stack: Deque[DataValue]  # index 0 is the TOP
-    _namespace: ChainMap[str, DataValue]
+    _stack: Deque[ScriptValue]  # index 0 is the TOP
+    _namespace: ChainMap[str, ScriptValue]
     _block: Iterator[ScriptSymbol] = None
-    def __init__(self, runtime: ScriptRuntime, parent: Optional[ContextFrame], flags: ContextFlags = ContextFlags(0)):
+    def __init__(self, runtime: ScriptRuntime, parent: Optional[ContextFrame], flags: CtxFlags = CtxFlags(0)):
         self.runtime = runtime
         self.parent = parent
         self.flags = flags
@@ -54,30 +54,26 @@ class ContextFrame:
 
         if parent is None:
             self._namespace = chainmap()
-        elif self.flags & ContextFlags.SharedNamespace:
+        elif self.flags & CtxFlags.SharedNamespace:
             self._namespace = parent._namespace
         else:
             self._namespace = parent._namespace.new_child()
 
-    def create_child(self, flags: ContextFlags = ContextFlags(0)) -> ContextFrame:
+    def create_child(self, flags: CtxFlags = CtxFlags(0)) -> ContextFrame:
         """Create a new child frame from this one."""
         return ContextFrame(self.runtime, self, flags)
 
-    def get_namespace(self) -> MutableMapping[str, DataValue]:
+    def get_namespace(self) -> MutableMapping[str, ScriptValue]:
         return self._namespace
 
-    def namespace_lookup(self, name: str) -> Optional[DataValue]:
+    def namespace_lookup(self, name: str) -> Optional[ScriptValue]:
         return self._namespace.get(name)
 
-    def namespace_bind_value(self, name: str, value: DataValue):
+    def namespace_bind_value(self, name: str, value: ScriptValue):
         self._namespace[name] = value
 
     def get_symbol_iter(self) -> Iterator[ScriptSymbol]:
         return self._block
-
-    def execs(self, text: str) -> None:
-        parser = self.runtime.create_parser()
-        self.exec(parser.parse(text))
 
     def exec(self, prog: Iterable[ScriptSymbol]) -> None:
         self._block = iter(prog)
@@ -97,10 +93,10 @@ class ContextFrame:
                 raise
 
     ## Symbol Evaluation
-    def eval(self, sym: ScriptSymbol) -> DataValue:
+    def eval(self, sym: ScriptSymbol) -> ScriptValue:
         if isinstance(sym, Identifier):
             # assignment context
-            if ContextFlags.BlockAssignment in self.flags:
+            if CtxFlags.BlockAssignment in self.flags:
                 return NameValue(self, sym.name)
 
             value = self.namespace_lookup(sym.name)
@@ -117,7 +113,7 @@ class ContextFrame:
             # compound literals
             ctor = _compound_literals.get(sym.type)
             if ctor is not None:
-                array_ctx = self.create_child(ContextFlags.SharedNamespace)
+                array_ctx = self.create_child(CtxFlags.SharedNamespace)
                 array_ctx.exec(sym.value)
                 return ctor(array_ctx.iter_stack_result())
 
@@ -125,26 +121,26 @@ class ContextFrame:
 
     ## Stack Operations
     ## TODO move these to EvalStack class?
-    def push_stack(self, value: DataValue) -> None:
+    def push_stack(self, value: ScriptValue) -> None:
         self._stack.appendleft(value)
 
-    def pop_stack(self) -> DataValue:
+    def pop_stack(self) -> ScriptValue:
         if len(self._stack) == 0:
             raise ScriptError('stack is empty')
         return self._stack.popleft()
 
-    def iter_stack(self) -> Iterator[DataValue]:
+    def iter_stack(self) -> Iterator[ScriptValue]:
         """Iterate starting from the top and moving down."""
         return iter(self._stack)
 
-    def iter_stack_result(self) -> Iterator[DataValue]:
+    def iter_stack_result(self) -> Iterator[ScriptValue]:
         """Iterate the stack contents as if copying results to another context."""
         return reversed(self._stack)
 
-    def peek_stack(self, idx: int = 0) -> DataValue:
+    def peek_stack(self, idx: int = 0) -> ScriptValue:
         return self._stack[idx]
 
-    def insert_stack(self, idx: int, value: DataValue) -> None:
+    def insert_stack(self, idx: int, value: ScriptValue) -> None:
         self._stack.insert(idx, value)
 
     def remove_stack(self, idx: int) -> None:
@@ -202,14 +198,18 @@ class ScriptRuntime:
     def create_parser(self) -> ScriptParser:
         return ScriptParser(self, self._lexer.clone())
 
-    def get_globals(self) -> MutableMapping[str, DataValue]:
+    def get_globals(self) -> MutableMapping[str, ScriptValue]:
         return self.root.get_namespace()
 
-    def iter_stack(self) -> Iterator[DataValue]:
+    def iter_stack(self) -> Iterator[ScriptValue]:
         return self.root.iter_stack()
 
     def clear_stack(self) -> None:
         self.root.clear_stack()
+
+    def eval_script(self, text: str) -> Iterator[ScriptSymbol]:
+        parser = self.create_parser()
+        return parser.parse(text)
 
     def run_script(self, text: str) -> None:
         parser = ScriptParser(self, self._lexer)

@@ -1,5 +1,5 @@
 from enum import Flag, auto
 
-class ContextFlags(Flag):
+class CtxFlags(Flag):
     SharedNamespace = auto()
     BlockAssignment = auto()

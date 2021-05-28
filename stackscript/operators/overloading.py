@@ -4,7 +4,7 @@ import itertools
 from collections import defaultdict
 from typing import TYPE_CHECKING, NamedTuple, Iterable
 
-from stackscript.values import DataValue
+from stackscript.values import ScriptValue
 from stackscript.exceptions import ScriptOperandError
 from stackscript.operators.defines import Operator, Operand
 
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from stackscript.runtime import ContextFrame
 
     Signature = Sequence[Operand]
-    OperatorFunc = Callable[[ContextFrame, ...], Iterable[DataValue]]
+    OperatorFunc = Callable[[ContextFrame, ...], Iterable[ScriptValue]]
 
 
 # map operator -> signature -> operator data
@@ -34,7 +34,7 @@ def apply_operator(ctx: ContextFrame, op: Operator) -> None:
     args = [ ctx.pop_stack() for i in range(opdata.arity) ]
 
     for value in opdata.func(ctx, *reversed(args)):
-        if not isinstance(value, DataValue):
+        if not isinstance(value, ScriptValue):
             raise TypeError(f"invalid object type yielded from operator {opdata}: {type(value)}", value)
         ctx.push_stack(value)
 

@@ -9,12 +9,12 @@ if TYPE_CHECKING:
 
 class Operand(Enum):
     """Each data value has an Operand type that is used to resolve operator overloading."""
-    Nil         = auto()
+    # Nil         = auto()
     Bool        = auto()
     Number      = auto()
     String      = auto()
     Array       = auto()
-    Block       = auto()
+    Exec       = auto()
     Name        = auto()  # for pseudo-values used in block assignment expressions
 
     def __repr__(self) -> str:
@@ -29,7 +29,7 @@ class Operator(Enum):
     value: OperatorInfo
 
     Invert  = OperatorInfo('~', r'~(?!=)')    # bitwise not, array dump
-    Inspect = OperatorInfo('`', r'`')
+    Quote = OperatorInfo('`', r'`')
     Eval    = OperatorInfo('!', r'!')
 
     # Rotate  = OperatorInfo(r'@')    # move the ith stack element to top

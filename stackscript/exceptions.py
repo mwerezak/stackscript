@@ -6,7 +6,7 @@ if TYPE_CHECKING:
     from typing import Optional
     from stackscript.parser import SymbolMeta
     from stackscript.runtime import ContextFrame
-    from stackscript.values import DataValue
+    from stackscript.values import ScriptValue
 
 
 class ScriptError(Exception):
@@ -28,7 +28,7 @@ class ScriptAssignmentError(ScriptError):
     pass
 
 class ScriptOperandError(ScriptError):
-    def __init__(self, message: str, *operands: DataValue, meta: Optional[SymbolMeta] = None, ctx: Optional[ContextFrame] = None):
+    def __init__(self, message: str, *operands: ScriptValue, meta: Optional[SymbolMeta] = None, ctx: Optional[ContextFrame] = None):
         self.operands = operands
         super().__init__(message, meta, ctx)
 
@@ -37,12 +37,13 @@ class ScriptOperandError(ScriptError):
         return '\n'.join(message)
 
 class ScriptIndexError(ScriptError):
-    def __init__(self, message: str, container: DataValue, index: DataValue, meta: Optional[SymbolMeta] = None, ctx: Optional[ContextFrame] = None):
+    def __init__(self, message: str, index: ScriptValue, container: Optional[ScriptValue] = None, *,
+                 meta: Optional[SymbolMeta] = None, ctx: Optional[ContextFrame] = None):
         self.container = container
         self.index = index
         super().__init__(message, meta, ctx)
 
 class ScriptNameError(ScriptError):
-    def __init__(self, message: str, name: str, meta: Optional[SymbolMeta] = None, ctx: Optional[ContextFrame] = None):
+    def __init__(self, message: str, name: str, *, meta: Optional[SymbolMeta] = None, ctx: Optional[ContextFrame] = None):
         self.name = name
         super().__init__(message, meta, ctx)

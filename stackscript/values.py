@@ -10,14 +10,12 @@ from stackscript.operators.defines import Operand
 from stackscript.exceptions import ScriptIndexError
 
 if TYPE_CHECKING:
-    from typing import Any, Optional, Iterator, Iterable, ClassVar
+    from typing import Callable, Iterator, Iterable, ClassVar
     from stackscript.runtime import ContextFrame
 
 
-_VT = TypeVar('_VT')
-
-class DataValue(ABC, Generic[_VT]):
-    __slots__ = 'value'
+class ScriptValue(ABC):
+    """Abstract base class of all data types."""
 
     @property
     @abstractmethod
@@ -25,60 +23,80 @@ class DataValue(ABC, Generic[_VT]):
 
     @property
     @abstractmethod
-    def name(self) -> str: ...
-
-    value: _VT
+    def tpname(self) -> str: ...
 
     @abstractmethod
     def format(self) -> str:
-        """Format the DataValue in a way that produces valid script code which evalutes to the value."""
+        """Format the ScriptValue in a way that produces valid script code which evalutes to the value."""
 
     def __repr__(self) -> str:
-        return f'<{self.__class__.__name__}({self.value!r})>'
+        return f'<{self.__class__.__name__}({self.format()})>'
 
     def __str__(self) -> str:
         return self.format()
 
+    def __bool__(self) -> bool:
+        return True
+
+    def __eq__(self, other: ScriptValue) -> bool:
+        return self is other
+
+
+###### Primitives
+
+## WIP. May be used with table lookups, like in Lua
+## Or maybe not
+# class NilValue(ScriptValue):
+#     tpname = 'nil'
+#     optype = Operand.Nil
+#
+#     def __repr__(self):
+#         return f'<{self.__class__.__name__}>'
+#
+#     def format(self) -> str:
+#         return 'nil'
+#
+#     def __hash__(self) -> int:
+#         return id(self)
+#
+#     def __bool__(self) -> bool:
+#         return False
+#
+#     def __eq__(self, other) -> bool:
+#         return other is self
+#
+# NilValue = NilValue()
+
+
+## Value types
+_VT = TypeVar('_VT')
+
+class DataValue(ABC, ScriptValue, Generic[_VT]):
+    __slots__ = 'value'
+
+    value: _VT
+
+    @abstractmethod
+    def __init__(self, value: _VT): ...
+
+    @property
+    @abstractmethod
+    def value(self) -> _VT: ...
+
     def __hash__(self) -> int:
         return hash(self.value)
 
-    def __eq__(self, other: DataValue) -> bool:
-        return self.value == other.value
-
-@runtime_checkable
-class ContainerValue(Protocol):
-    def __contains__(self, item: DataValue) -> bool: ...
-
-    def __iter__(self) -> Iterator[DataValue]: ...
-
-    def __getitem__(self, idx: int) -> DataValue: ...
-
-## WIP. Will be used with table lookups, like in Lua
-class NilValue(DataValue[None]):
-    name = 'nil'
-    optype = Operand.Nil
-    value = None
-
-    def __repr__(self):
-        return f'<{self.__class__.__name__}>'
-
-    def format(self) -> str:
-        return 'nil'
-
-    def __bool__(self) -> bool:
-        return False
-
-    def __eq__(self, other: DataValue) -> bool:
-        return False
-
-NilValue = NilValue()
+    def __eq__(self, other: ScriptValue) -> bool:
+        if isinstance(other, DataValue):
+            return self.value == other.value
+        return super().__eq__(other)
 
 
 class BoolValue(DataValue[bool]):
     TRUE: ClassVar[BoolValue]
     FALSE: ClassVar[BoolValue]
 
-    name = 'bool'
+    tpname = 'bool'
     optype = Operand.Bool
 
     value: bool
@@ -91,7 +109,7 @@ class BoolValue(DataValue[bool]):
     def __bool__(self) -> bool:
         return self.value
 
-    def __eq__(self, other: DataValue) -> bool:
+    def __eq__(self, other: ScriptValue) -> bool:
         return self.value == bool(other)
 
     @classmethod
@@ -104,7 +122,7 @@ BoolValue.FALSE = BoolValue(False)
 
 @total_ordering
 class IntValue(DataValue[int]):
-    name = 'int'
+    tpname = 'int'
     optype = Operand.Number
 
     value: int
@@ -127,7 +145,7 @@ class IntValue(DataValue[int]):
 
 @total_ordering
 class FloatValue(DataValue[float]):
-    name = 'float'
+    tpname = 'float'
     optype = Operand.Number
 
     value: float
@@ -140,9 +158,18 @@ class FloatValue(DataValue[float]):
     def __lt__(self, other: DataValue) -> bool:
         return self.value < other.value
 
+###### Sequences
 
-class StringValue(DataValue[str]):
-    name = 'string'
+@runtime_checkable
+class SequenceValue(Protocol):
+    def __contains__(self, item: ScriptValue) -> bool: ...
+
+    def __iter__(self) -> Iterator[ScriptValue]: ...
+
+    def __getitem__(self, idx: IntValue) -> ScriptValue: ...
+
+class StringValue(DataValue[str], SequenceValue):
+    tpname = 'string'
     optype = Operand.String
 
     value: str
@@ -155,7 +182,7 @@ class StringValue(DataValue[str]):
     def __len__(self) -> int:
         return len(self.value)
 
-    def __contains__(self, item: DataValue) -> bool:
+    def __contains__(self, item: ScriptValue) -> bool:
         if isinstance(item, StringValue):
             return item.value in self.value
         return False
@@ -164,70 +191,22 @@ class StringValue(DataValue[str]):
         for ch in self.value:
             yield StringValue(ch)
 
-    def __getitem__(self, idx: int) -> StringValue:
-        return StringValue(self.value[idx])
-
-
-class ArrayValue(DataValue[MutableSequence[DataValue]]):
-    name = 'array'
-    optype = Operand.Array
-
-    value: MutableSequence[DataValue]
-    def __init__(self, value: Iterable[DataValue]):
-        self.value = list(value)
-
-    def format(self) -> str:
-        content = ' '.join(value.format() for value in self.value)
-        return '[' + content + ']'
-
-    def __len__(self) -> int:
-        return len(self.value)
-
-    def __contains__(self, item: DataValue) -> bool:
-        return item in self.value
-
-    def __iter__(self) -> Iterator[DataValue]:
-        return iter(self.value)
-
-    def __hash__(self) -> int:
-        return hash(id(self.value))
-
-    # being mutable, Arrays are only equal if they reference the same sequence instance
-    def __eq__(self, other: DataValue) -> bool:
-        if isinstance(other, ArrayValue):
-            return self.value is other.value
-        return False
-
-    def __getitem__(self, index: IntValue) -> DataValue:
-        if index.value == 0:
-            raise ScriptIndexError('0 is not a valid index', self, index)
+    def __getitem__(self, idx: IntValue) -> StringValue:
+        if idx.value == 0:
+            raise ScriptIndexError('0 is not a valid index', idx, self)
         try:
-            return self.value[index.as_index()]
+            return StringValue(self.value[idx.as_index()])
         except IndexError:
-            raise ScriptIndexError('index out of range', self, index) from None
+            raise ScriptIndexError('index out of range', idx, self) from None
 
-    def __setitem__(self, index: IntValue, value: DataValue) -> None:
-        if index.value == 0:
-            raise ScriptIndexError('0 is not a valid index', self, index)
-
-        # assigning to last index + 1 will increase size of array
-        idx = index.as_index()
-        if idx == len(self):
-            self.value.append(value)
-            return
-
-        try:
-            self.value[idx] = value
-        except IndexError:
-            raise ScriptIndexError('index out of range', self, index) from None
 
 # similar to arrays, but immutable
-class TupleValue(DataValue[Sequence[DataValue]]):
-    name = 'tuple'
+class TupleValue(DataValue[Sequence[ScriptValue]], SequenceValue):
+    tpname = 'tuple'
     optype = Operand.Array
 
-    value: Sequence[DataValue]
-    def __init__(self, value: Iterable[DataValue]):
+    value: Sequence[ScriptValue]
+    def __init__(self, value: Iterable[ScriptValue]):
         self.value = tuple(value)
 
     def format(self) -> str:
@@ -237,24 +216,81 @@ class TupleValue(DataValue[Sequence[DataValue]]):
     def __len__(self) -> int:
         return len(self.value)
 
-    def __contains__(self, item: DataValue) -> bool:
+    def __contains__(self, item: ScriptValue) -> bool:
         return item in self.value
 
-    def __iter__(self) -> Iterator[DataValue]:
+    def __iter__(self) -> Iterator[ScriptValue]:
         return iter(self.value)
 
-    def __getitem__(self, index: IntValue) -> DataValue:
+    def __getitem__(self, index: IntValue) -> ScriptValue:
         if index.value == 0:
-            raise ScriptIndexError('0 is not a valid index', self, index)
+            raise ScriptIndexError('0 is not a valid index', index, self)
         try:
             return self.value[index.as_index()]
         except IndexError:
-            raise ScriptIndexError('index out of range', self, index) from None
+            raise ScriptIndexError('index out of range', index, self) from None
+
+# arrays cannot be a DataValue because they are mutable
+class ArrayValue(ScriptValue, SequenceValue):
+    tpname = 'array'
+    optype = Operand.Array
+
+    def __init__(self, contents: Iterable[ScriptValue]):
+        self._contents = list(contents)
+
+    def format(self) -> str:
+        content = ' '.join(value.format() for value in self._contents)
+        return '[' + content + ']'
+
+    def __len__(self) -> int:
+        return len(self._contents)
+
+    def __contains__(self, item: ScriptValue) -> bool:
+        return item in self._contents
+
+    def __iter__(self) -> Iterator[ScriptValue]:
+        return iter(self._contents)
+
+    def __getitem__(self, index: IntValue) -> ScriptValue:
+        if index.value == 0:
+            raise ScriptIndexError('0 is not a valid index', index, self)
+        try:
+            return self._contents[index.as_index()]
+        except IndexError:
+            raise ScriptIndexError('index out of range', index, self) from None
+
+    def __setitem__(self, index: IntValue, value: ScriptValue) -> None:
+        if index.value == 0:
+            raise ScriptIndexError('0 is not a valid index', index, self)
+
+        # assignment to the end of array
+        idx = index.as_index()
+        if idx == len(self):
+            self._contents.append(value)
+            return
+
+        try:
+            self._contents[idx] = value
+        except IndexError:
+            raise ScriptIndexError('index out of range', index, self) from None
+
+    def remove(self, value: ScriptValue) -> bool:
+        try:
+            self._contents.remove(value)
+        except ValueError:
+            return False
+        return True
 
 
-class BlockValue(DataValue[Sequence[ScriptSymbol]]):
-    name = 'block'
-    optype = Operand.Block
+###### Executable Values
+
+@runtime_checkable
+class CtxExecValue(Protocol):
+    def apply_exec(self, ctx: ContextFrame) -> None: ...
+
+class BlockValue(DataValue[Sequence[ScriptSymbol]], CtxExecValue):
+    tpname = 'block'
+    optype = Operand.Exec
 
     value: Sequence[ScriptSymbol]
     def __init__(self, value: Iterable[ScriptSymbol]):
@@ -267,13 +303,32 @@ class BlockValue(DataValue[Sequence[ScriptSymbol]]):
     def __iter__(self) -> Iterator[ScriptSymbol]:
         return iter(self.value)
 
+    def apply_exec(self, ctx: ContextFrame) -> None:
+        ctx.exec(self)
+
+
+class BuiltinValue(ScriptValue, CtxExecValue):
+    tpname = 'builtin'
+    optype = Operand.Exec
+
+    def __init__(self, name: str, exec_func: Callable[[ContextFrame], None]):
+        self.name = name
+        self.exec_func = exec_func
+
+    def format(self) -> str:
+        return f'<{self.tpname}: {self.name}>'
+
+    def apply_exec(self, ctx: ContextFrame) -> None:
+        self.exec_func(ctx)
+
+
 
 ###### Pseudo Data Values - these should only ever appear inside a block assignment context
 
 @runtime_checkable
 class BindingTarget(Protocol):
-    def bind_value(self, ctx: ContextFrame, value: DataValue) -> None: ...
-    def resolve_value(self) -> DataValue: ...
+    def bind_value(self, ctx: ContextFrame, value: ScriptValue) -> None: ...
+    def resolve_value(self) -> ScriptValue: ...
 
 ## Pseudo data value
 ## WIP. Will be used to handle array/table assignment syntax, e.g:
@@ -284,39 +339,39 @@ class BindingTarget(Protocol):
 ## >>> array
 ## [2 42 4 5 6]
 ##
-class IndexValue(DataValue[None]):
-    name = 'index'
+class IndexValue(ScriptValue, BindingTarget):
+    tpname = '_index'
     optype = Operand.Name
-    value = None
 
     def __init__(self, array: ArrayValue, index: IntValue):
+        if index.value == 0:
+            raise ScriptIndexError('0 is not a valid index', index, array)
         self.array = array
         self.index = index
 
     def format(self) -> str:
         return f'{self.array.format()} {self.index.format()} $'
 
-    def bind_value(self, ctx: ContextFrame, value: DataValue) -> None:
+    def bind_value(self, ctx: ContextFrame, value: ScriptValue) -> None:
         self.array[self.index] = value
 
-    def resolve_value(self) -> DataValue:
+    def resolve_value(self) -> ScriptValue:
         return self.array[self.index]
 
 ## Another pseudo data value, also used for block assignment
-class NameValue(DataValue[str]):
-    name = 'name'
+class NameValue(ScriptValue, BindingTarget):
+    tpname = '_name'
     optype = Operand.Name
-    value = None
 
-    def __init__(self, ctx: ContextFrame, value: str):
+    def __init__(self, ctx: ContextFrame, name: str):
         self.ctx = ctx
-        self.value = value
+        self.name = name
 
     def format(self) -> str:
-        return self.value
+        return self.name
 
-    def bind_value(self, ctx: ContextFrame, dvalue: DataValue) -> None:
-        ctx.namespace_bind_value(self.value, dvalue)
+    def bind_value(self, ctx: ContextFrame, dvalue: ScriptValue) -> None:
+        ctx.namespace_bind_value(self.name, dvalue)
 
-    def resolve_value(self) -> DataValue:
-        return self.ctx.namespace_lookup(self.value)
+    def resolve_value(self) -> ScriptValue:
+        return self.ctx.namespace_lookup(self.name)
