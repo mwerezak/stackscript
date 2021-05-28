@@ -209,8 +209,15 @@ class ArrayValue(DataValue[MutableSequence[DataValue]]):
     def __setitem__(self, index: IntValue, value: DataValue) -> None:
         if index.value == 0:
             raise ScriptIndexError('0 is not a valid index', self, index)
+
+        # assigning to last index + 1 will increase size of array
+        idx = index.as_index()
+        if idx == len(self):
+            self.value.append(value)
+            return
+
         try:
-            self.value[index.as_index()] = value
+            self.value[idx] = value
         except IndexError:
             raise ScriptIndexError('index out of range', self, index) from None
 

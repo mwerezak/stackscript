@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from stackscript import ContextFlags
-from stackscript.values import ArrayValue, TupleValue, StringValue, IntValue, IndexValue
+from stackscript.values import ArrayValue, TupleValue, StringValue, IntValue, IndexValue, BindingTarget
 from stackscript.exceptions import  ScriptOperandError, ScriptIndexError
 
 from stackscript.operators.defines import Operator, Operand
@@ -58,14 +58,20 @@ def operator_index(ctx: ContextFrame, seq, index) -> Iterable[DataValue]:
         raise ScriptIndexError('index out of range', seq, index) from None
     return [item]
 
+@ophandler_typed(Operator.Index, Operand.Array, Operand.Name)
+@ophandler_typed(Operator.Index, Operand.Name, Operand.Name)
 @ophandler_typed(Operator.Index, Operand.Name, Operand.Number)
-def operator_index(ctx: ContextFrame, name, index) -> Iterable[DataValue]:
+def operator_index(ctx: ContextFrame, array, index) -> Iterable[DataValue]:
+    if isinstance(index, BindingTarget):
+        index = index.resolve_value()
     if not isinstance(index, IntValue):
         raise ScriptOperandError("unsupported operand type", index)
 
-    array = name.resolve_value()
+    if isinstance(array, BindingTarget):
+        array = array.resolve_value()
     if not isinstance(array, ArrayValue):
         raise ScriptOperandError("unsupported operand type", array)
+
     return [IndexValue(array, index)]
 
 

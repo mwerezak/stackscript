@@ -317,7 +317,10 @@ if __name__ == '__main__':
         {
             2>>: {array block};
             []: result; 1: idx;
-            { idx array# <= } {; result array idx$ block| +: result; idx 1+: idx} while;
+            { idx array# <= } {
+                array idx$ block% : {result idx$}; 
+                idx 1+: idx
+            } while;
             result 
         }: map;
         
