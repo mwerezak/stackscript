@@ -1,7 +1,8 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from stackscript.values import ArrayValue, TupleValue, StringValue, IntValue
+from stackscript import ContextFlags
+from stackscript.values import ArrayValue, TupleValue, StringValue, IntValue, IndexValue
 from stackscript.exceptions import  ScriptOperandError, ScriptIndexError
 
 from stackscript.operators.defines import Operator, Operand
@@ -9,7 +10,7 @@ from stackscript.operators.overloading import ophandler_typed, ophandler_permute
 from stackscript.operators.coercion import coerce_array
 
 if TYPE_CHECKING:
-    from typing import Type, Iterable
+    from typing import Iterable
     from stackscript.values import DataValue
     from stackscript.runtime import ContextFrame
 
@@ -30,7 +31,7 @@ def operator_collect(ctx: ContextFrame, n) -> Iterable[DataValue]:
         raise ScriptOperandError("unsupported operand type", n)
 
     result = [ctx.pop_stack() for i in range(n.value)]
-    yield TupleValue(reversed(result))
+    return [TupleValue(reversed(result))]
 
 
 ###### Index
@@ -38,24 +39,34 @@ def operator_collect(ctx: ContextFrame, n) -> Iterable[DataValue]:
 # replace the array or string with the i-th element
 @ophandler_typed(Operator.Index, Operand.Array, Operand.Number)
 @ophandler_typed(Operator.Index, Operand.String, Operand.Number)
-def operator_index(ctx, seq, index) -> Iterable[DataValue]:
+def operator_index(ctx: ContextFrame, seq, index) -> Iterable[DataValue]:
     if not isinstance(index, IntValue):
         raise ScriptOperandError("unsupported operand type", index)
 
     if index.value == 0:
         raise ScriptIndexError('0 is not a valid index', seq, index)
 
-    ## convert from 1-indexing
-    if index.value < 0:
-        i = index.value
-    else:
-        i = index.value - 1
+    ## support indexing assignment
+    if ContextFlags.BlockAssignment in ctx.flags:
+        if not isinstance(seq, ArrayValue):
+            raise ScriptOperandError("unsupported operand type", seq)
+        return [IndexValue(seq, index)]
 
     try:
-        item = seq.value[i]
+        item = seq[index.as_index()]
     except IndexError:
         raise ScriptIndexError('index out of range', seq, index) from None
     return [item]
+
+@ophandler_typed(Operator.Index, Operand.Name, Operand.Number)
+def operator_index(ctx: ContextFrame, name, index) -> Iterable[DataValue]:
+    if not isinstance(index, IntValue):
+        raise ScriptOperandError("unsupported operand type", index)
+
+    array = name.resolve_value()
+    if not isinstance(array, ArrayValue):
+        raise ScriptOperandError("unsupported operand type", array)
+    return [IndexValue(array, index)]
 
 
 ###### Size
@@ -122,7 +133,7 @@ def operator_bitor(ctx, a, b) -> Iterable[DataValue]:
     union.update(b)
 
     rtype = coerce_array(a, b)
-    yield rtype(union)
+    return [rtype(union)]
 
 @ophandler_typed(Operator.BitAnd, Operand.Array, Operand.Array)
 def operator_bitand(ctx, a, b) -> Iterable[DataValue]:
@@ -130,7 +141,7 @@ def operator_bitand(ctx, a, b) -> Iterable[DataValue]:
     intersect.intersection_update(b)
 
     rtype = coerce_array(a, b)
-    yield rtype(intersect)
+    return [rtype(intersect)]
 
 @ophandler_typed(Operator.BitXor, Operand.Array, Operand.Array)
 def operator_bitxor(ctx, a, b) -> Iterable[DataValue]:
@@ -138,4 +149,4 @@ def operator_bitxor(ctx, a, b) -> Iterable[DataValue]:
     symdiff.symmetric_difference_update(b)
 
     rtype = coerce_array(a, b)
-    yield rtype(symdiff)
+    return [rtype(symdiff)]

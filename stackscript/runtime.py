@@ -66,6 +66,12 @@ class ContextFrame:
     def get_namespace(self) -> MutableMapping[str, DataValue]:
         return self._namespace
 
+    def namespace_lookup(self, name: str) -> Optional[DataValue]:
+        return self._namespace.get(name)
+
+    def namespace_bind_value(self, name: str, value: DataValue):
+        self._namespace[name] = value
+
     def get_symbol_iter(self) -> Iterator[ScriptSymbol]:
         return self._block
 
@@ -95,9 +101,9 @@ class ContextFrame:
         if isinstance(sym, Identifier):
             # assignment context
             if ContextFlags.BlockAssignment in self.flags:
-                return NameValue(sym.name)
+                return NameValue(self, sym.name)
 
-            value = self._namespace.get(sym.name)
+            value = self.namespace_lookup(sym.name)
             if value is None:
                 raise ScriptNameError(f"could not resolve name '{sym.name}'", sym.name, meta=sym.meta)
             return value
@@ -291,6 +297,7 @@ if __name__ == '__main__':
         5 factorial| sqrsub1%
         """,
         """ 2 4 'a' 8 [2] 'c' 3<<: {thing1 thing2 thing3}; thing1 """,
+        """ [2 3 4 5 6 7]: arr; 42:{arr 2$}; arr """,
     ]
 
     from pprint import pprint

@@ -32,6 +32,10 @@ class ScriptOperandError(ScriptError):
         self.operands = operands
         super().__init__(message, meta, ctx)
 
+    def __str__(self) -> str:
+        message = [ super().__str__(), ', '.join(str(type(o)) for o in self.operands),  str(self.meta) ]
+        return '\n'.join(message)
+
 class ScriptIndexError(ScriptError):
     def __init__(self, message: str, container: DataValue, index: DataValue, meta: Optional[SymbolMeta] = None, ctx: Optional[ContextFrame] = None):
         self.container = container

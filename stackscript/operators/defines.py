@@ -15,6 +15,7 @@ class Operand(Enum):
     String      = auto()
     Array       = auto()
     Block       = auto()
+    Name        = auto()  # for pseudo-values used in block assignment expressions
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__qualname__}.{self.name}>'

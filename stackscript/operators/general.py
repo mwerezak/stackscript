@@ -1,8 +1,8 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, cast, Iterable, Sequence
 
 from stackscript.runtime import ContextFlags
-from stackscript.values import BlockValue, StringValue, TupleValue, ContainerValue, NameValue
+from stackscript.values import BlockValue, StringValue, TupleValue, ContainerValue, BindingTarget
 from stackscript.parser import Identifier, Literal
 from stackscript.exceptions import ScriptOperandError, ScriptSyntaxError, ScriptAssignmentError
 
@@ -115,8 +115,7 @@ def operator_assign(ctx: ContextFrame) -> Iterable[DataValue]:
 
     value = ctx.peek_stack()
     if isinstance(next_sym, Identifier):
-        namespace = ctx.get_namespace()
-        namespace[next_sym.name] = value
+        ctx.namespace_bind_value(next_sym.name, value)
         return ()
 
     # multiple assignment
@@ -134,17 +133,16 @@ def _do_block_assignment(ctx: ContextFrame, value: DataValue, block: BlockValue)
     sub_ctx.exec(block)
     names = list(sub_ctx.iter_stack_result())
 
-    if not all(isinstance(name, NameValue) for name in names):
+    if not all(isinstance(name, BindingTarget) for name in names):
         raise ScriptAssignmentError('cannot assign to a non-identifier')
 
-    # names = cast(Sequence[NameValue], names)
+    names = cast(Sequence[BindingTarget], names)
     len_names = len(names)
     if len_names == 0:
         pass  # no need to do anything
     elif len_names == 1:
         name = names[0]
-        namespace = ctx.get_namespace()
-        namespace[name.value] = value
+        name.bind_value(ctx, value)
     else:
         ## multiple assignment
         if not isinstance(value, ContainerValue):
@@ -156,6 +154,5 @@ def _do_block_assignment(ctx: ContextFrame, value: DataValue, block: BlockValue)
             msg = 'not enough' if len_values < len_names else 'too many'
             raise ScriptAssignmentError(f'{msg} values to unpack (expected {len_names}, got {len_values})')
 
-        namespace = ctx.get_namespace()
         for name, value in zip(names, values):
-            namespace[name.value] = value
+            name.bind_value(ctx, value)

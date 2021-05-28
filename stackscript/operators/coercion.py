@@ -5,7 +5,7 @@ from stackscript.values import IntValue, FloatValue, ArrayValue, TupleValue
 from stackscript.operators.defines import Operand
 
 if TYPE_CHECKING:
-    from typing import Type
+    from typing import Any, Union, Type
     from stackscript.values import DataValue
 
 
@@ -15,7 +15,7 @@ COERCION_RULES = {
     Operand.Array  : [ ArrayValue, TupleValue ],
 }
 
-def coerce_operands(optype: Operand, *operands: DataValue) -> Type[DataValue]:
+def coerce_operands(optype: Operand, *operands: DataValue) -> Any:
     for priority_type in COERCION_RULES[optype]:
         if any(isinstance(o, priority_type) for o in operands):
             return priority_type
@@ -24,8 +24,8 @@ def coerce_operands(optype: Operand, *operands: DataValue) -> Type[DataValue]:
     raise ValueError(f'incorrect operands for optype {optype}: ' + msg)
 
 
-def coerce_array(*operands: DataValue) -> Type[DataValue]:
+def coerce_array(*operands: DataValue) -> Union[Type[ArrayValue], Type[TupleValue]]:
     return coerce_operands(Operand.Array, *operands)
 
-def coerce_number(*operands: DataValue) -> Type[DataValue]:
+def coerce_number(*operands: DataValue) -> Union[Type[IntValue], Type[FloatValue]]:
     return coerce_operands(Operand.Number, *operands)

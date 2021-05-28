@@ -7,9 +7,11 @@ from typing import TYPE_CHECKING, TypeVar, Protocol, runtime_checkable
 from typing import Generic, Sequence, MutableSequence  # for generic type declaration
 from stackscript.parser import ScriptSymbol
 from stackscript.operators.defines import Operand
+from stackscript.exceptions import ScriptIndexError
 
 if TYPE_CHECKING:
-    from typing import Any, Iterator, Iterable, ClassVar
+    from typing import Any, Optional, Iterator, Iterable, ClassVar
+    from stackscript.runtime import ContextFrame
 
 
 _VT = TypeVar('_VT')
@@ -115,6 +117,14 @@ class IntValue(DataValue[int]):
     def __lt__(self, other: DataValue) -> bool:
         return self.value < other.value
 
+    def as_index(self) -> int:
+        """convert from 1-indexing to 0-indexing."""
+        if self.value < 0:
+            return self.value
+        if self.value > 0:
+            return self.value - 1
+        raise ValueError('invalid index value')
+
 @total_ordering
 class FloatValue(DataValue[float]):
     name = 'float'
@@ -179,9 +189,6 @@ class ArrayValue(DataValue[MutableSequence[DataValue]]):
     def __iter__(self) -> Iterator[DataValue]:
         return iter(self.value)
 
-    def __getitem__(self, idx: int) -> DataValue:
-        return self.value[idx]
-
     def __hash__(self) -> int:
         return hash(id(self.value))
 
@@ -191,9 +198,13 @@ class ArrayValue(DataValue[MutableSequence[DataValue]]):
             return self.value is other.value
         return False
 
-    def unpack(self) -> Iterator[Any]:
-        for item in self:
-            yield item.value
+    def __getitem__(self, index: IntValue) -> DataValue:
+        if index.value == 0:
+            raise ScriptIndexError('0 is not a valid index', self, index)
+        try:
+            return self.value[index.as_index()]
+        except IndexError:
+            raise ScriptIndexError('index out of range', self, index) from None
 
 
 # similar to arrays, but immutable
@@ -218,12 +229,13 @@ class TupleValue(DataValue[Sequence[DataValue]]):
     def __iter__(self) -> Iterator[DataValue]:
         return iter(self.value)
 
-    def __getitem__(self, idx: int) -> DataValue:
-        return self.value[idx]
-
-    def unpack(self) -> Iterator[Any]:
-        for item in self:
-            yield item.value
+    def __getitem__(self, index: IntValue) -> DataValue:
+        if index.value == 0:
+            raise ScriptIndexError('0 is not a valid index', self, index)
+        try:
+            return self.value[index.as_index()]
+        except IndexError:
+            raise ScriptIndexError('index out of range', self, index) from None
 
 
 class BlockValue(DataValue[Sequence[ScriptSymbol]]):
@@ -244,6 +256,11 @@ class BlockValue(DataValue[Sequence[ScriptSymbol]]):
 
 ###### Pseudo Data Values - these should only ever appear inside a block assignment context
 
+@runtime_checkable
+class BindingTarget(Protocol):
+    def bind_value(self, ctx: ContextFrame, value: DataValue) -> None: ...
+    def resolve_value(self) -> DataValue: ...
+
 ## Pseudo data value
 ## WIP. Will be used to handle array/table assignment syntax, e.g:
 ## >>> n: 2;
@@ -255,24 +272,37 @@ class BlockValue(DataValue[Sequence[ScriptSymbol]]):
 ##
 class IndexValue(DataValue[None]):
     name = 'index'
-    optype = Operand.Nil
+    optype = Operand.Name
     value = None
 
-    def __init__(self, container: DataValue, key: DataValue):
-        self.container = container
-        self.key = key
+    def __init__(self, array: ArrayValue, index: IntValue):
+        self.array = array
+        self.index = index
 
     def format(self) -> str:
-        return f'{self.container.format()} {self.key.format()} $'
+        return f'{self.array.format()} {self.index.format()} $'
+
+    def bind_value(self, ctx: ContextFrame, value: DataValue) -> None:
+        self.array.value[self.index.as_index()] = value
+
+    def resolve_value(self) -> DataValue:
+        return self.array[self.index]
 
 ## Another pseudo data value, also used for block assignment
 class NameValue(DataValue[str]):
     name = 'name'
-    optype = Operand.Nil
+    optype = Operand.Name
+    value = None
 
-    value: str
-    def __init__(self, value: str):
+    def __init__(self, ctx: ContextFrame, value: str):
+        self.ctx = ctx
         self.value = value
 
     def format(self) -> str:
         return self.value
+
+    def bind_value(self, ctx: ContextFrame, dvalue: DataValue) -> None:
+        ctx.namespace_bind_value(self.value, dvalue)
+
+    def resolve_value(self) -> DataValue:
+        return self.ctx.namespace_lookup(self.value)
