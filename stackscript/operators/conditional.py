@@ -50,7 +50,7 @@ def operator_bitxor(ctx, a, b) -> Iterable[ScriptValue]:
 # helper
 def _shortcircuit_eval(ctx: ContextFrame, o: ScriptValue, name: str) -> ScriptValue:
     if isinstance(o, CtxExecValue):
-        sub_ctx = ctx.create_child(CtxFlags.SharedNamespace)
+        sub_ctx = ctx.create_child(CtxFlags.ShareNamespace)
         o.apply_exec(sub_ctx)
         if sub_ctx.stack_size() != 1:
             raise ScriptOperandError(name + ' did not evaluate to a single value', o)

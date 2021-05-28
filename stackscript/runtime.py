@@ -44,17 +44,20 @@ _compound_literals: Mapping[LiteralType, Callable[[Any], ScriptValue]] = {
 class ContextFrame:
     _stack: Deque[ScriptValue]  # index 0 is the TOP
     _namespace: ChainMap[str, ScriptValue]
-    _block: Iterator[ScriptSymbol] = None
+    _block: Optional[Iterator[ScriptSymbol]] = None
     def __init__(self, runtime: ScriptRuntime, parent: Optional[ContextFrame], flags: CtxFlags = CtxFlags(0)):
         self.runtime = runtime
         self.parent = parent
         self.flags = flags
 
-        self._stack = deque()
+        if self.flags & CtxFlags.ShareStack:
+            self._stack = parent._stack
+        else:
+            self._stack = deque()
 
         if parent is None:
             self._namespace = chainmap()
-        elif self.flags & CtxFlags.SharedNamespace:
+        elif self.flags & CtxFlags.ShareNamespace:
             self._namespace = parent._namespace
         else:
             self._namespace = parent._namespace.new_child()
@@ -76,27 +79,41 @@ class ContextFrame:
         return self._block
 
     def exec(self, prog: Iterable[ScriptSymbol]) -> None:
-        self._block = iter(prog)
-        for sym in self._block:
-            try:
-                if isinstance(sym, OperatorSym):
-                    apply_operator(self, sym.operator)
-                else:
-                    value = self.eval(sym)
-                    self.push_stack(value)
+        # HACK - temporary (hopefully!)
+        if self._block is None:
+            self._exec(prog)
+        else:
+            sub_ctx = self.create_child(CtxFlags.ShareStack|CtxFlags.ShareNamespace)
+            sub_ctx._exec(prog)
 
-            except ScriptError as err:
-                if err.meta is None:
-                    err.meta = sym.meta
-                if err.ctx is None:
-                    err.ctx = self
-                raise
+    def _exec(self, prog: Iterable[ScriptSymbol]) -> None:
+        if self._block is not None:
+            raise ValueError
+
+        self._block = iter(prog)
+        try:
+            for sym in self._block:
+                try:
+                    if isinstance(sym, OperatorSym):
+                        apply_operator(self, sym.operator)
+                    else:
+                        value = self.eval(sym)
+                        self.push_stack(value)
+
+                except ScriptError as err:
+                    if err.meta is None:
+                        err.meta = sym.meta
+                    if err.ctx is None:
+                        err.ctx = self
+                    raise
+        finally:
+            self._block = None
 
     ## Symbol Evaluation
     def eval(self, sym: ScriptSymbol) -> ScriptValue:
         if isinstance(sym, Identifier):
             # assignment context
-            if CtxFlags.BlockAssignment in self.flags:
+            if CtxFlags.BlockAssignExpr in self.flags:
                 return NameValue(self, sym.name)
 
             value = self.namespace_lookup(sym.name)
@@ -113,7 +130,7 @@ class ContextFrame:
             # compound literals
             ctor = _compound_literals.get(sym.type)
             if ctor is not None:
-                array_ctx = self.create_child(CtxFlags.SharedNamespace)
+                array_ctx = self.create_child(CtxFlags.ShareNamespace)
                 array_ctx.exec(sym.value)
                 return ctor(array_ctx.iter_stack_result())
 
@@ -304,27 +321,44 @@ if __name__ == '__main__':
         array
         """,
         """
-        {
-            :{haystack needle};
+        {   :{haystack needle};
+        
             haystack#: size; 1: idx;
             { { idx size <= } { haystack idx$ needle ~= } and } { idx 1+: idx } while;
             { idx size <= } idx -1 if
+        
         }: find_idx;
         
         [1 2 3 4 5 6 7 8] 3 2>> find_idx%
         """,
         """
-        {
-            2>>: {array block};
-            []: result; 1: idx;
+        {   2>>: {array block};
+             
+            1: idx;
             { idx array# <= } {
-                array idx$ block% : {result idx$}; 
-                idx 1+: idx
+                array idx$ block% : {array idx$};
+                idx 1+: idx;
             } while;
-            result 
+            
+            array
+             
         }: map;
+           
         
         [1 2 3 4 5] {.. *} map!
+        """,
+        """
+        {   2>>: {array block},
+            
+            1: idx,
+            { idx array# <= } {
+                array idx$ block!
+                idx 1+: idx,
+            } while    
+        
+        }: fold;
+        
+        0 [1 2 3 4 5] {+} fold!
         """
     ]
 

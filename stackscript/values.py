@@ -128,6 +128,9 @@ class IntValue(DataValue[int]):
     def format(self) -> str:
         return str(self.value)
 
+    def __bool__(self) -> bool:
+        return self.value != 0
+
     def __lt__(self, other: DataValue) -> bool:
         return self.value < other.value
 
@@ -150,6 +153,9 @@ class FloatValue(DataValue[float]):
 
     def format(self) -> str:
         return str(self.value)
+
+    def __bool__(self) -> bool:
+        return self.value != 0
 
     def __lt__(self, other: DataValue) -> bool:
         return self.value < other.value

@@ -44,7 +44,7 @@ def operator_index(ctx: ContextFrame, seq, index) -> Iterable[ScriptValue]:
         raise ScriptOperandError("unsupported operand type", index)
 
     ## support indexing assignment
-    if CtxFlags.BlockAssignment in ctx.flags:
+    if CtxFlags.BlockAssignExpr in ctx.flags:
         if not isinstance(seq, ArrayValue):
             raise ScriptOperandError("unsupported operand type", seq)
         return [IndexValue(seq, index)]

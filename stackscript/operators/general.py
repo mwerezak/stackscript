@@ -112,7 +112,7 @@ def operator_assign(ctx: ContextFrame) -> Iterable[ScriptValue]:
     try:
         next_sym = next(ctx.get_symbol_iter())
     except StopIteration:
-        raise ScriptSyntaxError('invalid syntax')
+        raise ScriptSyntaxError('invalid syntax') from None
 
     value = ctx.peek_stack()
     if isinstance(next_sym, Identifier):
@@ -130,7 +130,7 @@ def operator_assign(ctx: ContextFrame) -> Iterable[ScriptValue]:
 
 def _do_block_assignment(ctx: ContextFrame, value: ScriptValue, block: BlockValue) -> None:
     # first, execute the block in an assignment context and get the result
-    sub_ctx = ctx.create_child(CtxFlags.BlockAssignment)
+    sub_ctx = ctx.create_child(CtxFlags.BlockAssignExpr)
     sub_ctx.exec(block)
     names = list(sub_ctx.iter_stack_result())
 
