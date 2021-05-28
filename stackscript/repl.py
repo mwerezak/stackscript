@@ -45,7 +45,11 @@ class REPL:
 
         while not self._exit:
             ## Read
-            expr = self._read_expression()
+            try:
+                expr = self._read_expression()
+            except KeyboardInterrupt:
+                self._print()
+                continue
 
             ## Evaluate
             if expr:
@@ -150,3 +154,16 @@ class REPL:
             self._print(f"*** Invalid argument '{arg}'")
         else:
             self._autoclear = options[arg]
+
+    def _cmd_globals(self, args) -> None:
+        """View the global namespace."""
+        globals = self.runtime.get_globals()
+        result = [
+            (name + ':', value.format()) for name, value in globals.items()
+        ]
+
+        colwidths = [ max(len(s) for s in col) for col in zip(*result) ]
+        for name, value in result:
+            print(name.ljust(colwidths[0]), value)
+
+
