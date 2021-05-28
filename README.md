@@ -117,16 +117,17 @@ The indexing operator `$` replaces a list and an integer with the n-th item in t
 
 ### Block Assignment Expressions
 
-When assigning a value using `:`, the right side of the assignment does not have to be an identifier.
+When assigning a value using `:`, the right side of the assignment does not always have to be an identifier.
+It can also be a block. This provides a convenient syntax for destructuring arrays or tuples, and updating arrays.
 
-Example, using block assignment syntax to destructure an array:
+For example, using block assignment syntax to destructure an array:
 
     >>> [ 'aaa' 'bbb' 'ccc' ]: stuff;
     >>> stuff: {thing1 thing2 thing3};
     >>> thing3
     ] 'ccc'
 
-Block assignment syntax to replace values in arrays:
+Block assignment syntax can also be used to modify arrays using the index operator `$`.
 
     >>> [1 2 3 4 5 6 7]: array;
     >>> 42: {array 2$} // replacing a single value
@@ -139,6 +140,8 @@ You can even combine the two to replace multiple values in an array at once.
     >>> array
     ] [1 2 3 56 6 70]
 
+Note that the value of an assignment expression is always the value being assigned
+(the value to the left of the `:`).
 
 ## Operator Reference
 
@@ -147,7 +150,7 @@ Note that certain operators are *overloaded* and so may appear multiple times in
 ### General
 | operator    | name        | arity  |  effect
 | ----------- | ----------- | ------ | -------
-| \`          | inspect     | 1      | "Quotes" a value, replacing it with a string that when evaluted produces the original value.
+| \`          | quote       | 1      | "Quotes" a value, replacing it with a string that when evaluted produces the original value.
 | ..          | duplicate   | 1      | Copy the top value on the stack.
 | ,           | drop        | 1      | Remove the top value from the stack.
 | :&nbsp;\<name\> | assignment  | 1      | Assign the a value to a name, then push it back onto the stack.
