@@ -187,7 +187,7 @@ Note: left and right bitshifts will be built-in functions, rather than having de
 | operator    | name        | arity  |  effect
 | ----------- | ----------- | ------ | -------
 | ~           | unpack      | 1      | Replace a list with its contents. Each item in the list is pushed onto the stack.
-| <<          | collection  | 1      | Operates on an integer and collects the next n items on the stack into a tuple.
+| >>          | collection  | 1      | Operates on an integer and collects the next n items on the stack into a tuple.
 | #           | length      | 1      | Produce the size of the list
 | $           | index       | 2      | Operates on a list and an integer. Replaces both with the n-th item in the list (starting at 1).
 | +           | concat      | 2      | Concatentate two lists.

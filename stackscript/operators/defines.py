@@ -49,8 +49,6 @@ class Operator(Enum):
     BitOr   = OperatorInfo('|',  r'\|')   # bitwise/setwise or
     BitAnd  = OperatorInfo('&',  r'&')    # bitwise/setwise and
     BitXor  = OperatorInfo('^',  r'\^')   # bitwise/setwise xor
-    LShift  = OperatorInfo('<<', r'<<')
-    RShift  = OperatorInfo('>>', r'>>')
 
     LT      = OperatorInfo('<',  r'<(?![<=])') # less than, elements less than index
     LE      = OperatorInfo('<=', r'<=')     # less than or equal to
@@ -63,7 +61,7 @@ class Operator(Enum):
     # Decons  = OperatorInfo('--', r'--')     #
     Index   = OperatorInfo('$',  r'\$')     # take the i-th element from an array or string
     Size    = OperatorInfo('#',  r'\#')
-    Collect = OperatorInfo('<<', r'<<')
+    Collect = OperatorInfo('>>', r'>>')
 
     Not     = OperatorInfo('not', r'not')
     And     = OperatorInfo('and', r'and')

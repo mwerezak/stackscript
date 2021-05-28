@@ -296,7 +296,7 @@ if __name__ == '__main__':
         }: factorial;
         5 factorial| sqrsub1%
         """,
-        """ 2 4 'a' 8 [2] 'c' 3<<: {thing1 thing2 thing3}; thing1 """,
+        """ 2 4 'a' 8 [2] 'c' 3>>: {thing1 thing2 thing3}; thing1 """,
         """ [2 3 4 5 6 7]: arr; 42:{arr 2$}; arr """,
         """
         [1 2 3 4 5 6 7]: array;
@@ -304,13 +304,14 @@ if __name__ == '__main__':
         array
         """,
         """
-        'a': needle; [1 2 3 4 5 6 7 8]: haystack;
-        1: idx; 
-        { 
-            {idx haystack# <=} {haystack idx$ needle ~=} and 
-        } 
-        { idx 1+: idx } while;
-        idx
+        {
+            :{haystack needle};
+            haystack#: size; 1: idx;
+            { { idx size <= } { haystack idx$ needle ~= } and } { idx 1+: idx } while;
+            { idx size <= } idx -1 if
+        }: find_idx;
+        
+        [1 2 3 4 5 6 7 8] 3 2>> find_idx%
         """
     ]
 
