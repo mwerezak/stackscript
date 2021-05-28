@@ -206,6 +206,13 @@ class ArrayValue(DataValue[MutableSequence[DataValue]]):
         except IndexError:
             raise ScriptIndexError('index out of range', self, index) from None
 
+    def __setitem__(self, index: IntValue, value: DataValue) -> None:
+        if index.value == 0:
+            raise ScriptIndexError('0 is not a valid index', self, index)
+        try:
+            self.value[index.as_index()] = value
+        except IndexError:
+            raise ScriptIndexError('index out of range', self, index) from None
 
 # similar to arrays, but immutable
 class TupleValue(DataValue[Sequence[DataValue]]):
@@ -283,7 +290,7 @@ class IndexValue(DataValue[None]):
         return f'{self.array.format()} {self.index.format()} $'
 
     def bind_value(self, ctx: ContextFrame, value: DataValue) -> None:
-        self.array.value[self.index.as_index()] = value
+        self.array[self.index] = value
 
     def resolve_value(self) -> DataValue:
         return self.array[self.index]
