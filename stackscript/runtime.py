@@ -298,6 +298,11 @@ if __name__ == '__main__':
         """,
         """ 2 4 'a' 8 [2] 'c' 3<<: {thing1 thing2 thing3}; thing1 """,
         """ [2 3 4 5 6 7]: arr; 42:{arr 2$}; arr """,
+        """
+        [1 2 3 4 5 6 7]: array;
+        [56 70]: {array 4$ array 7$};
+        array
+        """,
     ]
 
     from pprint import pprint

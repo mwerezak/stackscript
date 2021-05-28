@@ -32,6 +32,8 @@ Other inspirations for this language come from Python, Lua, and a bit of Scheme/
 
 The implementation is still incomplete, I've only started working on it this past week. But I've made a lot of progress so far and I really like the direction it's going.
 
+### Expressions and Assignment
+
 Anyways, more about the language itself (still yet to be named):
 
 Naturally since it is stack-based all expressions are RPN.
@@ -39,19 +41,29 @@ Naturally since it is stack-based all expressions are RPN.
     >>> 3 2 * 4 +
     ] 10
 
-You can assign values to identifiers using the assignment operator `:`.
+You can assign values to identifiers (actually name binding) using the assignment operator `:`.
 
     >>> [1 2 3 'a' 'b' 'c']: mylist
 
-Right now the available data types are booleans, integers, floats, strings, lists, and blocks. The block type is really important so I will get back to that later.
+Right now the available data types are booleans, integers, floats, strings, arrays, tuples, and blocks.
 
-In the future I'd like to have immutable and mutable flavours of lists.
+### Evaluation of Expressions and Operators
 
-I also want to add a Lua-inspired "table" mapping type that also supports Lua-style metatables. I think this will add a lot of *oomph* to the language without needing to add the weight of a fully-fledged object system.
+Whenever an expression is encountered, each symbol in the expression is applied to the stack.
 
-Like Lua I plan to have a small closed set of types. I think you can do a lot with just lists, tables, and primitives.
+- If the symbol is a literal, the literal value is pushed onto the stack.
+- If the symbol is a name, the name is looked up to produce a value which is pushed onto the stack.
+- If the symbol is an operator, the operator manipulates the stack in some way.
 
-Now, back to the "block" type. Blocks are containers that contain unexecuted code. These are very similar to "quotations" in Factor.
+Operators can consume values from the stack, push values onto the stack, or do other things.
+Many operators are overloaded, so the exact behavior will depend on the type of the first 1-3 items
+on top of the stack, depending on arity.
+
+A complete operator reference can be found at the bottom of this README.
+
+### Blocks
+
+Blocks are containers that contain unexecuted code. These are very similar to "quotations" in Factor.
 Blocks are just values, so you can put them in lists, pass them when invoking another block, etc.
 
 Blocks can be applied using either the invoke operator `!`, or the evaluate operator `%`. 
@@ -65,8 +77,14 @@ The evaluate `%` operator is the simplest, it just applies the contents of the b
     >>> '2 2 +'%  // can also evaluate strings
     ] 4
 
-Unlike `%`, the invoke operator `!` executes the block in a new "scope". This means that only the top item on the parent stack is visible to the inside of the block.
-Also any names that are assigned inside the block remain local to the block. All the results of invoking a block are added back to the parent stack.
+Unlike `%`, the invoke operator `!` executes the block in a new "scope".
+This means that only the top item on the parent stack is visible to the inside of the block.
+Also any names that are assigned inside the block remain local to the block.
+
+Whenever a block is invoked in a new "scope", the expression inside the block is evaluated and
+whatever remains on the stack after applying every symbol in the block is called the block's "results".
+When using the `%` operator on a block, the results of the invocation are pushed back onto the parent
+stack. Effectively, the child stack is concatenated onto the end of the parent.
 
 An example, calculating the factorial:
 
@@ -97,12 +115,29 @@ The indexing operator `$` replaces a list and an integer with the n-th item in t
     >>> ['a' 'b' 'c' 'd' 'e'] 2$
     ] 'b'
 
-As well, I plan to add multiple assignment syntax for lists and tuples to make handling argument lists even more convenient.
+### Block Assignment Expressions
+
+When assigning a value using `:`, the right side of the assignment does not have to be an identifier.
+
+Example, using block assignment syntax to destructure an array:
 
     >>> [ 'aaa' 'bbb' 'ccc' ]: stuff;
     >>> stuff: {thing1 thing2 thing3};
     >>> thing3
     ] 'ccc'
+
+Block assignment syntax to replace values in arrays:
+
+    >>> [1 2 3 4 5 6 7]: array;
+    >>> 42: {array 2$} // replacing a single value
+    ] [1 42 3 4 5 6 7]
+
+You can even combine the two to replace multiple values in an array at once.
+
+    >>> [1 2 3 4 5 6 7]: array;
+    >>> [56 70]: {array 4$ array 7$};
+    >>> array
+    ] [1 2 3 56 6 70]
 
 
 ## Operator Reference
