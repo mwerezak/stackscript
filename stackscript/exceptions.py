@@ -24,6 +24,9 @@ class ScriptError(Exception):
 class ScriptSyntaxError(ScriptError):
     pass
 
+class ScriptAssignmentError(ScriptError):
+    pass
+
 class ScriptOperandError(ScriptError):
     def __init__(self, message: str, *operands: DataValue, meta: Optional[SymbolMeta] = None, ctx: Optional[ContextFrame] = None):
         self.operands = operands

@@ -3,12 +3,19 @@ from __future__ import annotations
 from collections import deque, ChainMap as chainmap
 from typing import TYPE_CHECKING
 
+from stackscript import ContextFlags
 from stackscript.parser import LiteralType, Lexer, Parser, Identifier, Literal, OperatorSym
 from stackscript.exceptions import ScriptError, ScriptNameError
 from stackscript.operators.overloading import apply_operator
 
+## operator overloads
+import stackscript.operators.general
+import stackscript.operators.arithmetic
+import stackscript.operators.sequences
+import stackscript.operators.conditional
+
 from stackscript.values import (
-    BoolValue, IntValue, FloatValue, StringValue, ArrayValue, TupleValue, BlockValue
+    BoolValue, IntValue, FloatValue, StringValue, ArrayValue, TupleValue, BlockValue, NameValue
 )
 
 if TYPE_CHECKING:
@@ -18,11 +25,7 @@ if TYPE_CHECKING:
     from stackscript.parser import ScriptSymbol
     from stackscript.values import DataValue, BoolValue
 
-## actually load operator overloads
-import stackscript.operators.general
-import stackscript.operators.arithmetic
-import stackscript.operators.sequences
-import stackscript.operators.conditional
+
 
 
 _simple_literals: Mapping[LiteralType, Callable[[Any], DataValue]] = {
@@ -42,21 +45,23 @@ class ContextFrame:
     _stack: Deque[DataValue]  # index 0 is the TOP
     _namespace: ChainMap[str, DataValue]
     _block: Iterator[ScriptSymbol] = None
-    def __init__(self, runtime: ScriptRuntime, parent: Optional[ContextFrame], share_namespace: bool = False):
+    def __init__(self, runtime: ScriptRuntime, parent: Optional[ContextFrame], flags: ContextFlags = ContextFlags(0)):
         self.runtime = runtime
         self.parent = parent
+        self.flags = flags
+
         self._stack = deque()
 
         if parent is None:
             self._namespace = chainmap()
-        elif share_namespace:
+        elif self.flags & ContextFlags.SharedNamespace:
             self._namespace = parent._namespace
         else:
             self._namespace = parent._namespace.new_child()
 
-    def create_child(self, *, share_namespace: bool = False) -> ContextFrame:
+    def create_child(self, flags: ContextFlags = ContextFlags(0)) -> ContextFrame:
         """Create a new child frame from this one."""
-        return ContextFrame(self.runtime, self, share_namespace)
+        return ContextFrame(self.runtime, self, flags)
 
     def get_namespace(self) -> MutableMapping[str, DataValue]:
         return self._namespace
@@ -88,9 +93,13 @@ class ContextFrame:
     ## Symbol Evaluation
     def eval(self, sym: ScriptSymbol) -> DataValue:
         if isinstance(sym, Identifier):
+            # assignment context
+            if ContextFlags.BlockAssignment in self.flags:
+                return NameValue(sym.name)
+
             value = self._namespace.get(sym.name)
             if value is None:
-                raise ScriptNameError(f"could not resolve identifier '{sym.name}'", sym.name, meta=sym.meta)
+                raise ScriptNameError(f"could not resolve name '{sym.name}'", sym.name, meta=sym.meta)
             return value
 
         if isinstance(sym, Literal):
@@ -102,7 +111,7 @@ class ContextFrame:
             # compound literals
             ctor = _compound_literals.get(sym.type)
             if ctor is not None:
-                array_ctx = self.create_child(share_namespace=True)
+                array_ctx = self.create_child(ContextFlags.SharedNamespace)
                 array_ctx.exec(sym.value)
                 return ctor(array_ctx.iter_stack_result())
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import total_ordering
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, TypeVar, Protocol, runtime_checkable
 
 from typing import Generic, Sequence, MutableSequence  # for generic type declaration
 from stackscript.parser import ScriptSymbol
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 _VT = TypeVar('_VT')
 
 class DataValue(ABC, Generic[_VT]):
-    __slots__ = '_value'
+    __slots__ = 'value'
 
     @property
     @abstractmethod
@@ -26,9 +26,6 @@ class DataValue(ABC, Generic[_VT]):
     def name(self) -> str: ...
 
     value: _VT
-    @property
-    @abstractmethod
-    def value(self) -> _VT: ...
 
     @abstractmethod
     def format(self) -> str:
@@ -46,15 +43,19 @@ class DataValue(ABC, Generic[_VT]):
     def __eq__(self, other: DataValue) -> bool:
         return self.value == other.value
 
+@runtime_checkable
+class ContainerValue(Protocol):
+    def __contains__(self, item: DataValue) -> bool: ...
+
+    def __iter__(self) -> Iterator[DataValue]: ...
+
+    def __getitem__(self, idx: int) -> DataValue: ...
 
 ## WIP. Will be used with table lookups, like in Lua
 class NilValue(DataValue[None]):
     name = 'nil'
     optype = Operand.Nil
-
-    @property
-    def value(self) -> NilValue:
-        return None
+    value = None
 
     def __repr__(self):
         return f'<{self.__class__.__name__}>'
@@ -86,10 +87,10 @@ class BoolValue(DataValue[bool]):
         return 'true' if self.value else 'false'
 
     def __bool__(self) -> bool:
-        return self._value
+        return self.value
 
     def __eq__(self, other: DataValue) -> bool:
-        return self._value == bool(other)
+        return self.value == bool(other)
 
     @classmethod
     def get_value(cls, b: bool) -> BoolValue:
@@ -109,10 +110,10 @@ class IntValue(DataValue[int]):
         self.value = int(value)
 
     def format(self) -> str:
-        return str(self._value)
+        return str(self.value)
 
     def __lt__(self, other: DataValue) -> bool:
-        return self._value < other.value
+        return self.value < other.value
 
 @total_ordering
 class FloatValue(DataValue[float]):
@@ -124,10 +125,10 @@ class FloatValue(DataValue[float]):
         self.value = float(value)
 
     def format(self) -> str:
-        return str(self._value)
+        return str(self.value)
 
     def __lt__(self, other: DataValue) -> bool:
-        return self._value < other.value
+        return self.value < other.value
 
 
 class StringValue(DataValue[str]):
@@ -139,22 +140,22 @@ class StringValue(DataValue[str]):
         self.value = value
 
     def format(self) -> str:
-        return repr(self._value)
+        return repr(self.value)
 
     def __len__(self) -> int:
-        return len(self._value)
+        return len(self.value)
 
     def __contains__(self, item: DataValue) -> bool:
         if isinstance(item, StringValue):
-            return item._value in self._value
+            return item.value in self.value
         return False
 
     def __iter__(self) -> Iterator[StringValue]:
-        for ch in self._value:
+        for ch in self.value:
             yield StringValue(ch)
 
     def __getitem__(self, idx: int) -> StringValue:
-        return StringValue(self._value[idx])
+        return StringValue(self.value[idx])
 
 
 class ArrayValue(DataValue[MutableSequence[DataValue]]):
@@ -170,24 +171,24 @@ class ArrayValue(DataValue[MutableSequence[DataValue]]):
         return '[' + content + ']'
 
     def __len__(self) -> int:
-        return len(self._value)
+        return len(self.value)
 
     def __contains__(self, item: DataValue) -> bool:
-        return item in self._value
+        return item in self.value
 
     def __iter__(self) -> Iterator[DataValue]:
-        return iter(self._value)
+        return iter(self.value)
 
     def __getitem__(self, idx: int) -> DataValue:
-        return self._value[idx]
+        return self.value[idx]
 
     def __hash__(self) -> int:
-        return hash(id(self._value))
+        return hash(id(self.value))
 
     # being mutable, Arrays are only equal if they reference the same sequence instance
     def __eq__(self, other: DataValue) -> bool:
         if isinstance(other, ArrayValue):
-            return self._value is other._value
+            return self.value is other.value
         return False
 
     def unpack(self) -> Iterator[Any]:
@@ -209,16 +210,16 @@ class TupleValue(DataValue[Sequence[DataValue]]):
         return '(' + content + ')'
 
     def __len__(self) -> int:
-        return len(self._value)
+        return len(self.value)
 
     def __contains__(self, item: DataValue) -> bool:
-        return item in self._value
+        return item in self.value
 
     def __iter__(self) -> Iterator[DataValue]:
-        return iter(self._value)
+        return iter(self.value)
 
     def __getitem__(self, idx: int) -> DataValue:
-        return self._value[idx]
+        return self.value[idx]
 
     def unpack(self) -> Iterator[Any]:
         for item in self:
@@ -241,6 +242,8 @@ class BlockValue(DataValue[Sequence[ScriptSymbol]]):
         return iter(self.value)
 
 
+###### Pseudo Data Values - these should only ever appear inside a block assignment context
+
 ## Pseudo data value
 ## WIP. Will be used to handle array/table assignment syntax, e.g:
 ## >>> n: 2;
@@ -252,18 +255,24 @@ class BlockValue(DataValue[Sequence[ScriptSymbol]]):
 ##
 class IndexValue(DataValue[None]):
     name = 'index'
+    optype = Operand.Nil
+    value = None
 
     def __init__(self, container: DataValue, key: DataValue):
         self.container = container
         self.key = key
 
-    @property
-    def optype(self) -> Operand:
-        return self.value.optype
-
-    @property
-    def value(self) -> Any:
-        return None
-
     def format(self) -> str:
         return f'{self.container.format()} {self.key.format()} $'
+
+## Another pseudo data value, also used for block assignment
+class NameValue(DataValue[str]):
+    name = 'name'
+    optype = Operand.Nil
+
+    value: str
+    def __init__(self, value: str):
+        self.value = value
+
+    def format(self) -> str:
+        return self.value

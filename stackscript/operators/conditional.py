@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from stackscript import ContextFlags
 from stackscript.values import BoolValue, BlockValue
 from stackscript.exceptions import  ScriptOperandError
 
@@ -49,7 +50,7 @@ def operator_bitxor(ctx, a, b) -> Iterable[DataValue]:
 # helper
 def _shortcircuit_eval(ctx: ContextFrame, o: DataValue, name: str) -> DataValue:
     if isinstance(o, BlockValue):
-        sub_ctx = ctx.create_child(share_namespace=True)
+        sub_ctx = ctx.create_child(ContextFlags.SharedNamespace)
         sub_ctx.exec(o)
         if sub_ctx.stack_size() != 1:
             raise ScriptOperandError(name + ' did not evaluate to a single value', o)

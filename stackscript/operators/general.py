@@ -1,9 +1,10 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Iterable
 
-from stackscript.values import BlockValue, StringValue, TupleValue
-from stackscript.parser import ScriptSymbol, Identifier, Literal, LiteralType
-from stackscript.exceptions import ScriptError, ScriptOperandError, ScriptSyntaxError
+from stackscript.runtime import ContextFlags
+from stackscript.values import BlockValue, StringValue, TupleValue, ContainerValue, NameValue
+from stackscript.parser import Identifier, Literal
+from stackscript.exceptions import ScriptOperandError, ScriptSyntaxError, ScriptAssignmentError
 
 from stackscript.operators.defines import Operator, Operand
 from stackscript.operators.overloading import ophandler_untyped, ophandler_typed, ophandler_permute
@@ -55,48 +56,6 @@ def operator_break(ctx):
     ctx.clear_stack()
     return ()
 
-###### Assignment
-
-@ophandler_untyped(Operator.Assign, 0)
-def operator_assign(ctx: ContextFrame) -> Iterable[DataValue]:
-    if ctx.stack_size() < 1:
-        raise ScriptOperandError('not enough operands')
-
-    try:
-        next_sym = next(ctx.get_symbol_iter())
-    except StopIteration:
-        raise ScriptSyntaxError('invalid syntax')
-
-    value = ctx.peek_stack()
-    namespace = ctx.get_namespace()
-    if isinstance(next_sym, Identifier):
-        namespace[next_sym.name] = value
-        return ()
-
-    # multiple assignment
-    if isinstance(next_sym, Literal):
-        if _check_multiple_assignment(value, next_sym):
-            # noinspection PyTypeChecker
-            names, values = next_sym.value, list(value)
-            nnames, nvalues = len(names), len(values)
-            if nvalues != nnames:
-                msg = 'not enough' if nvalues < nnames else 'too many'
-                raise ScriptError(f'{msg} values to unpack (expected {nnames}, got {nvalues})')
-            for identifier, o in zip(next_sym.value, values):
-                namespace[identifier.name] = o
-            return ()
-
-    raise ScriptSyntaxError('assignment is only allowed with an identifier, or a block literal containing only identifiers')
-
-def _check_multiple_assignment(value: DataValue, target: ScriptSymbol) -> bool:
-    if not isinstance(value, Iterable) or not isinstance(target, Literal):
-        return False
-    if target.type != LiteralType.Block:
-        return False
-    if not all(isinstance(sym, Identifier) for sym in target.value):
-        return False
-    return True
-
 ###### Evaluate
 
 # "unpack" a block by executing it in the current context
@@ -141,3 +100,62 @@ def operator_compose(ctx: ContextFrame, arg, block) -> Iterable[DataValue]:
     sub_ctx.exec(block)
     yield TupleValue(sub_ctx.iter_stack_result())
 
+
+###### Assignment
+
+@ophandler_untyped(Operator.Assign, 0)
+def operator_assign(ctx: ContextFrame) -> Iterable[DataValue]:
+    if ctx.stack_size() < 1:
+        raise ScriptOperandError('not enough operands')
+
+    try:
+        next_sym = next(ctx.get_symbol_iter())
+    except StopIteration:
+        raise ScriptSyntaxError('invalid syntax')
+
+    value = ctx.peek_stack()
+    if isinstance(next_sym, Identifier):
+        namespace = ctx.get_namespace()
+        namespace[next_sym.name] = value
+        return ()
+
+    # multiple assignment
+    if isinstance(next_sym, Literal):
+        target = ctx.eval(next_sym)
+        if isinstance(target, BlockValue):
+            _do_block_assignment(ctx, value, target)
+            return ()
+
+    raise ScriptOperandError('invalid operands for assignment')
+
+def _do_block_assignment(ctx: ContextFrame, value: DataValue, block: BlockValue) -> None:
+    # first, execute the block in an assignment context and get the result
+    sub_ctx = ctx.create_child(ContextFlags.BlockAssignment)
+    sub_ctx.exec(block)
+    names = list(sub_ctx.iter_stack_result())
+
+    if not all(isinstance(name, NameValue) for name in names):
+        raise ScriptAssignmentError('cannot assign to a non-identifier')
+
+    # names = cast(Sequence[NameValue], names)
+    len_names = len(names)
+    if len_names == 0:
+        pass  # no need to do anything
+    elif len_names == 1:
+        name = names[0]
+        namespace = ctx.get_namespace()
+        namespace[name.value] = value
+    else:
+        ## multiple assignment
+        if not isinstance(value, ContainerValue):
+            raise ScriptAssignmentError(f"value '{value}' does not support multiple assignment")
+
+        values = list(value)
+        len_values = len(values)
+        if len_values != len_names:
+            msg = 'not enough' if len_values < len_names else 'too many'
+            raise ScriptAssignmentError(f'{msg} values to unpack (expected {len_names}, got {len_values})')
+
+        namespace = ctx.get_namespace()
+        for name, value in zip(names, values):
+            namespace[name.value] = value
