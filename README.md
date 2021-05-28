@@ -226,5 +226,5 @@ Note: left and right bitshifts will be built-in functions, rather than having de
 | operator    | name        | arity  |  effect
 | ----------- | ----------- | ------ | -------
 | if          | ternary if  | 3      | If the first value is logically true, push the second value. Otherwise push the third value. If the value that would be pushed is a block, instead execute the block in the current scope.
-| while       | while       | 2      | Operates on two blocks. Execute the first block in a new scope. If it results in a single value (multiple values result in an error) that is "truthy" execute the second block in the current scope. Repeat this until the first block yields a logically false value.
+| while       | while       | 2      | Operates on two blocks. Execute the first block in a new scope. If it results in a single value (multiple values result in an error) that is logically true, execute the second block in the current scope. Repeat this until the first block yields a logically false value.
 | do          | do .. while | 1      | Operates on a block. Execute the block in the current scope and then pop the top value. Repeat this as long as the popped value is logically true.
