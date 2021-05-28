@@ -28,7 +28,7 @@ class OperatorInfo(NamedTuple):
 class Operator(Enum):
     value: OperatorInfo
 
-    Invert  = OperatorInfo('~', r'~')    # bitwise not, array dump
+    Invert  = OperatorInfo('~', r'~(?!=)')    # bitwise not, array dump
     Inspect = OperatorInfo('`', r'`')
     Eval    = OperatorInfo('!', r'!')
 

@@ -288,9 +288,9 @@ if __name__ == '__main__':
     tests = [
         """
         {~ .. * 1- }: sqrsub1;
-        
+
         {
-            .. 0 <= 
+            .. 0 <=
             {; 1}
             {.. 1- factorial% *} if
         }: factorial;
@@ -303,6 +303,15 @@ if __name__ == '__main__':
         [56 70]: {array 4$ array 7$};
         array
         """,
+        """
+        'a': needle; [1 2 3 4 5 6 7 8]: haystack;
+        1: idx; 
+        { 
+            {idx haystack# <=} {haystack idx$ needle ~=} and 
+        } 
+        { idx 1+: idx } while;
+        idx
+        """
     ]
 
     from pprint import pprint
