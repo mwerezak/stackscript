@@ -17,9 +17,6 @@ _VT = TypeVar('_VT')
 class DataValue(ABC, Generic[_VT]):
     __slots__ = '_value'
 
-    def __init__(self, value: _VT):
-        self._value = value
-
     @property
     @abstractmethod
     def optype(self) -> Operand: ...
@@ -28,9 +25,10 @@ class DataValue(ABC, Generic[_VT]):
     @abstractmethod
     def name(self) -> str: ...
 
+    value: _VT
     @property
-    def value(self) -> _VT:
-        return self._value
+    @abstractmethod
+    def value(self) -> _VT: ...
 
     @abstractmethod
     def format(self) -> str:
@@ -43,10 +41,35 @@ class DataValue(ABC, Generic[_VT]):
         return self.format()
 
     def __hash__(self) -> int:
-        return hash(self._value)
+        return hash(self.value)
 
     def __eq__(self, other: DataValue) -> bool:
-        return self._value == other.value
+        return self.value == other.value
+
+
+## WIP. Will be used with table lookups, like in Lua
+class NilValue(DataValue[None]):
+    name = 'nil'
+    optype = Operand.Nil
+
+    @property
+    def value(self) -> NilValue:
+        return None
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__}>'
+
+    def format(self) -> str:
+        return 'nil'
+
+    def __bool__(self) -> bool:
+        return False
+
+    def __eq__(self, other: DataValue) -> bool:
+        return False
+
+NilValue = NilValue()
+
 
 class BoolValue(DataValue[bool]):
     TRUE: ClassVar[BoolValue]
@@ -54,6 +77,10 @@ class BoolValue(DataValue[bool]):
 
     name = 'bool'
     optype = Operand.Bool
+
+    value: bool
+    def __init__(self, value: bool):
+        self.value = value
 
     def format(self) -> str:
         return 'true' if self.value else 'false'
@@ -77,8 +104,9 @@ class IntValue(DataValue[int]):
     name = 'int'
     optype = Operand.Number
 
-    def __init__(self, value: Any):
-        super().__init__(int(value))
+    value: int
+    def __init__(self, value: float):
+        self.value = int(value)
 
     def format(self) -> str:
         return str(self._value)
@@ -91,8 +119,9 @@ class FloatValue(DataValue[float]):
     name = 'float'
     optype = Operand.Number
 
-    def __init__(self, value: Any):
-        super().__init__(float(value))
+    value: float
+    def __init__(self, value: float):
+        self.value = float(value)
 
     def format(self) -> str:
         return str(self._value)
@@ -105,8 +134,9 @@ class StringValue(DataValue[str]):
     name = 'string'
     optype = Operand.String
 
-    def __init__(self, value: Iterable[DataValue]):
-        super().__init__(str(value))
+    value: str
+    def __init__(self, value: str):
+        self.value = value
 
     def format(self) -> str:
         return repr(self._value)
@@ -126,12 +156,14 @@ class StringValue(DataValue[str]):
     def __getitem__(self, idx: int) -> StringValue:
         return StringValue(self._value[idx])
 
+
 class ArrayValue(DataValue[MutableSequence[DataValue]]):
     name = 'array'
     optype = Operand.Array
 
+    value: MutableSequence[DataValue]
     def __init__(self, value: Iterable[DataValue]):
-        super().__init__(list(value))
+        self.value = list(value)
 
     def format(self) -> str:
         content = ' '.join(value.format() for value in self.value)
@@ -162,13 +194,15 @@ class ArrayValue(DataValue[MutableSequence[DataValue]]):
         for item in self:
             yield item.value
 
+
 # similar to arrays, but immutable
 class TupleValue(DataValue[Sequence[DataValue]]):
     name = 'tuple'
     optype = Operand.Array
 
+    value: Sequence[DataValue]
     def __init__(self, value: Iterable[DataValue]):
-        super().__init__(tuple(value))
+        self.value = tuple(value)
 
     def format(self) -> str:
         content = ' '.join(value.format() for value in self.value)
@@ -195,8 +229,9 @@ class BlockValue(DataValue[Sequence[ScriptSymbol]]):
     name = 'block'
     optype = Operand.Block
 
+    value: Sequence[ScriptSymbol]
     def __init__(self, value: Iterable[ScriptSymbol]):
-        super().__init__(tuple(value))
+        self.value = tuple(value)
 
     def format(self) -> str:
         content = ' '.join(sym.meta.text for sym in self.value)
@@ -204,3 +239,31 @@ class BlockValue(DataValue[Sequence[ScriptSymbol]]):
 
     def __iter__(self) -> Iterator[ScriptSymbol]:
         return iter(self.value)
+
+
+## Pseudo data value
+## WIP. Will be used to handle array/table assignment syntax, e.g:
+## >>> n: 2;
+## >>> somevalue: 42;
+## >>> [ 2 3 4 5 6 ]: array;
+## >>> somevalue: {array n$};  // will ever only exist in this context
+## >>> array
+## [2 42 4 5 6]
+##
+class IndexValue(DataValue[None]):
+    name = 'index'
+
+    def __init__(self, container: DataValue, key: DataValue):
+        self.container = container
+        self.key = key
+
+    @property
+    def optype(self) -> Operand:
+        return self.value.optype
+
+    @property
+    def value(self) -> Any:
+        return None
+
+    def format(self) -> str:
+        return f'{self.container.format()} {self.key.format()} $'
