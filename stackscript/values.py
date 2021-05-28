@@ -71,17 +71,13 @@ class ScriptValue(ABC):
 ## Value types
 _VT = TypeVar('_VT')
 
-class DataValue(ABC, ScriptValue, Generic[_VT]):
+class DataValue(ScriptValue, Generic[_VT]):
     __slots__ = 'value'
 
     value: _VT
 
     @abstractmethod
     def __init__(self, value: _VT): ...
-
-    @property
-    @abstractmethod
-    def value(self) -> _VT: ...
 
     def __hash__(self) -> int:
         return hash(self.value)
@@ -232,6 +228,8 @@ class TupleValue(DataValue[Sequence[ScriptValue]], SequenceValue):
 
 # arrays cannot be a DataValue because they are mutable
 class ArrayValue(ScriptValue, SequenceValue):
+    __slots__ = '_contents'
+
     tpname = 'array'
     optype = Operand.Array
 
